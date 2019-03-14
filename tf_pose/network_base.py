@@ -7,6 +7,8 @@ import numpy as np
 import tensorflow as tf
 import tensorflow.contrib.slim as slim
 
+
+from tf_pose.common import to_str
 from tf_pose import common
 
 DEFAULT_PADDING = 'SAME'
@@ -76,6 +78,10 @@ class BaseNetwork(object):
         '''
         data_dict = np.load(data_path, encoding='bytes').item()
         for op_name in data_dict:
+            op_name_str = op_name.decode('utf-8')
+            print("### ",op_name_str)
+            if 'conv4_3' in op_name_str or 'conv4_4' in op_name_str or 'conv5_1'in op_name_str or 'conv5_2' in op_name_str or 'conv5_3' in op_name_str or 'conv5_4' in op_name_str:
+                continue
             if isinstance(data_dict[op_name], np.ndarray):
                 if 'RMSProp' in op_name:
                     continue
@@ -88,12 +94,21 @@ class BaseNetwork(object):
                         print(e)
                         sys.exit(-1)
             else:
-                with tf.variable_scope(op_name, reuse=True):
+                # op_name = to_str(op_name)
+                # if op_name > 'conv4':
+                #     print(op_name, 'skipped')
+                #     continue
+                # print(op_name, 'restored')
+                #with tf.variable_scope(op_name, reuse=True):
+                with tf.variable_scope(op_name.decode('utf-8'), reuse=True):
                     for param_name, data in data_dict[op_name].items():
                         try:
-                            var = tf.get_variable(param_name.decode("utf-8"))
+                            # var = tf.get_variable(param_name.decode("utf-8"))
+                            # var = tf.get_variable(to_str(param_name))
+                            var = tf.get_variable(param_name)
                             session.run(var.assign(data))
                         except ValueError as e:
+                            import pdb;pdb.set_trace()
                             print(e)
                             if not ignore_missing:
                                 raise
@@ -165,7 +180,12 @@ class BaseNetwork(object):
 
     @layer
     def upsample(self, input, factor, name):
-        return tf.image.resize_bilinear(input, [int(input.get_shape()[1]) * factor, int(input.get_shape()[2]) * factor], name=name)
+        # return tf.image.resize_bilinear(input, [int(input.get_shape()[1]) * factor, int(input.get_shape()[2]) * factor], name=name)
+        if isinstance(factor, str):
+            sh = tf.shape(self.get_tensor(factor))[1:3]
+        else:
+            sh = tf.shape(input)[1:3] * factor
+        return tf.image.resize_bilinear(input, sh, align_corners=False, name=name)
 
     @layer
     def separable_conv(self, input, k_h, k_w, c_o, stride, name, relu=True, set_bias=True):
@@ -361,3 +381,32 @@ class BaseNetwork(object):
     def dropout(self, input, keep_prob, name):
         keep = 1 - self.use_dropout + (self.use_dropout * keep_prob)
         return tf.nn.dropout(input, keep, name=name)
+        
+    @layer
+    def se_block(self, input_feature, name, ratio=8):
+        """Contains the implementation of Squeeze-and-Excitation block.
+        As described in https://arxiv.org/abs/1709.01507.
+        ref : https://github.com/kobiso/SENet-tensorflow-slim/blob/master/nets/attention_module.py
+        """
+
+        kernel_initializer = tf.contrib.layers.variance_scaling_initializer()
+        bias_initializer = tf.constant_initializer(value=0.0)
+
+        with tf.variable_scope(name):
+            channel = input_feature.get_shape()[-1]
+            # Global average pooling
+            squeeze = tf.reduce_mean(input_feature, axis=[1, 2], keepdims=True)
+            excitation = tf.layers.dense(inputs=squeeze,
+                                         units=channel // ratio,
+                                         activation=tf.nn.relu,
+                                         kernel_initializer=kernel_initializer,
+                                         bias_initializer=bias_initializer,
+                                         name='bottleneck_fc')
+            excitation = tf.layers.dense(inputs=excitation,
+                                         units=channel,
+                                         activation=tf.nn.sigmoid,
+                                         kernel_initializer=kernel_initializer,
+                                         bias_initializer=bias_initializer,
+                                         name='recover_fc')
+            scale = input_feature * excitation
+        return scale

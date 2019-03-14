@@ -15,7 +15,7 @@ def _get_base_path():
     return os.environ.get('OPENPOSE_MODEL')
 
 
-def get_network(type, placeholder_input, sess_for_load=None, trainable=True):
+def get_network(type, placeholder_input, sess_for_load=None, trainable=True , ckp=None):
     if type == 'mobilenet':
         net = MobilenetNetwork({'image': placeholder_input}, conv_width=0.75, conv_width2=1.00, trainable=trainable)
         pretrain_path = 'pretrained/mobilenet_v1_0.75_224_2017_06_14/mobilenet_v1_0.75_224.ckpt'
@@ -57,14 +57,18 @@ def get_network(type, placeholder_input, sess_for_load=None, trainable=True):
                 raise Exception('Model file doesn\'t exist, path=%s' % pretrain_path_full)
             net.load(os.path.join(_get_base_path(), pretrain_path), sess_for_load)
         else:
-            s = '%dx%d' % (placeholder_input.shape[2], placeholder_input.shape[1])
-            ckpts = {
-                'mobilenet': 'trained/mobilenet_%s/model-246038' % s,
-                'mobilenet_thin': 'trained/mobilenet_thin_%s/model-449003' % s,
-                'mobilenet_fast': 'trained/mobilenet_fast_%s/model-189000' % s,
-                'mobilenet_accurate': 'trained/mobilenet_accurate/model-170000'
-            }
-            ckpt_path = os.path.join(_get_base_path(), ckpts[type])
+            #print(placeholder_input.shape)
+            #s = '%dx%d' % (placeholder_input.shape[2], placeholder_input.shape[1])
+            #ckpts = {
+            #    'mobilenet': 'trained/mobilenet_%s/model-246038' % s,
+            #    'mobilenet_thin': 'trained/mobilenet_thin_%s/model-449003' % s,
+            #    'mobilenet_fast': 'trained/mobilenet_fast_%s/model-189000' % s,
+            #    'mobilenet_accurate': 'trained/mobilenet_accurate/model-170000'
+            #}
+                 
+            #ckpt_path = os.path.join(_get_base_path(), ckpts[type])
+            #ckpt_path = os.path.join(_get_base_path(), ckp)
+            ckpt_path =  ckp
             loader = tf.train.Saver()
             try:
                 loader.restore(sess_for_load, ckpt_path)
