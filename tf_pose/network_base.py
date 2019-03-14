@@ -378,18 +378,18 @@ class BaseNetwork(object):
         """
         kernel_initializer = tf.contrib.layers.variance_scaling_initializer()
         bias_initializer = tf.constant_initializer(value=0.0)
-            squeeze = tf.reduce_mean(input_feature, axis=[1, 2], keepdims=True)
-            excitation = tf.layers.dense(inputs=squeeze,
+        squeeze = tf.reduce_mean(input_feature, axis=[1, 2], keepdims=True)
+        excitation = tf.layers.dense(inputs=squeeze,
                                          units=channel // ratio,
                                          activation=tf.nn.relu,
                                          kernel_initializer=kernel_initializer,
                                          bias_initializer=bias_initializer,
                                          name='bottleneck_fc')
-            excitation = tf.layers.dense(inputs=excitation,
+        excitation = tf.layers.dense(inputs=excitation,
                                          units=channel,
                                          activation=tf.nn.sigmoid,
                                          kernel_initializer=kernel_initializer,
                                          bias_initializer=bias_initializer,
                                          name='recover_fc')
-            scale = input_feature * excitation
+        scale = input_feature * excitation
         return scale
