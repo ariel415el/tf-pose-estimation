@@ -78,6 +78,10 @@ class BaseNetwork(object):
         '''
         data_dict = np.load(data_path, encoding='bytes').item()
         for op_name, param_dict in data_dict.items():
+            op_name_str = to_str(op_name) 
+            if 'conv4_3' in op_name_str or 'conv4_4' in op_name_str or 'conv5_1'in op_name_str or 'conv5_2' in op_name_str or 'conv5_3' in op_name_str or 'conv5_4' in op_name_str:
+                print("### ommiting layer initialization for",op_name_str)
+                continue
             if isinstance(data_dict[op_name], np.ndarray):
                 if 'RMSProp' in op_name:
                     continue
@@ -90,8 +94,7 @@ class BaseNetwork(object):
                         print(e)
                         sys.exit(-1)
             else:
-                op_name = to_str(op_name)
-                with tf.variable_scope(op_name, reuse=True):
+                with tf.variable_scope(op_name_str, reuse=True):
                     for param_name, data in param_dict.items():
                         try:
                             # var = tf.get_variable(param_name.decode("utf-8"))

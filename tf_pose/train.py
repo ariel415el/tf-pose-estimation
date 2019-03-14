@@ -157,15 +157,16 @@ if __name__ == '__main__':
     if args.freeze_backbone:        
         vars_to_optimize = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES,'Openpose') 
     print("### Optimizing %d\%d variables"%(len(vars_to_optimize),len(tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES))))
+    update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
     with tf.control_dependencies(update_ops):
         if args.virtual_batch  < 2:
-             train_op = opt.minimize(total_loss, global_step, var_list=vars_to_optimize, colocate_gradients_with_ops=True)
+             train_op = optimizer.minimize(total_loss, global_step, var_list=vars_to_optimize, colocate_gradients_with_ops=True)
         else:
              accum_vars = [tf.Variable(tf.zeros_like(tv.initialized_value()), trainable=False) for tv in vars_to_optimize]
              zero_ops = [tv.assign(tf.zeros_like(tv)) for tv in accum_vars]# gradient variable list = [ (gradient,variable) ]
-             gvs = opt.compute_gradients(virtual_batch_total_loss, var_list=vars_to_optimize, colocate_gradients_with_ops=True)
+             gvs = optimizer.compute_gradients(virtual_batch_total_loss, var_list=vars_to_optimize, colocate_gradients_with_ops=True)
              accum_ops = [accum_vars[i].assign_add(gv[0]) for i, gv in enumerate(gvs)]
-             train_step = opt.apply_gradients([(accum_vars[i] , gv[1]) for i, gv in enumerate(gvs)])
+             train_step = optimizer.apply_gradients([(accum_vars[i] , gv[1]) for i, gv in enumerate(gvs)])
              inc_gs_num = tf.assign(global_step, global_step + 1)
     print("# Defined optimizers")
     logger.info('define model-')
@@ -225,8 +226,7 @@ if __name__ == '__main__':
             logger.info('Restore pretrained weights...Done')
 
         logger.info('prepare file writer')
-        file_writer = tf.summary.FileWriter(os.path.join(logpath, args.tag), sess.graph)
-
+        file_writer = tf.summary.FileWriter(os.path.join(args.modelpath, training_name), sess.graph)
         logger.info('prepare coordinator')
         coord = tf.train.Coordinator()
         enqueuer.set_coordinator(coord)
