@@ -154,19 +154,19 @@ if __name__ == '__main__':
     optimizer = tf.train.AdamOptimizer(learning_rate, epsilon=1e-8)
     # optimizer = tf.train.MomentumOptimizer(learning_rate, momentum=0.8, use_locking=True, use_nesterov=True)
     vars_to_optimize = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)
-	if args.freeze_backbone:		
-		vars_to_optimize = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES,'Openpose') 
+    if args.freeze_backbone:        
+        vars_to_optimize = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES,'Openpose') 
     print("### Optimizing %d\%d variables"%(len(vars_to_optimize),len(tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES))))
-	with tf.control_dependencies(update_ops):
-	    if args.virtual_batch  < 2:
-	         train_op = opt.minimize(total_loss, global_step, var_list=vars_to_optimize, colocate_gradients_with_ops=True)
-	    else:
-	         accum_vars = [tf.Variable(tf.zeros_like(tv.initialized_value()), trainable=False) for tv in vars_to_optimize]
-	         zero_ops = [tv.assign(tf.zeros_like(tv)) for tv in accum_vars]# gradient variable list = [ (gradient,variable) ]
-	         gvs = opt.compute_gradients(virtual_batch_total_loss, var_list=vars_to_optimize, colocate_gradients_with_ops=True)
-	         accum_ops = [accum_vars[i].assign_add(gv[0]) for i, gv in enumerate(gvs)]
-	         train_step = opt.apply_gradients([(accum_vars[i] , gv[1]) for i, gv in enumerate(gvs)])
-	         inc_gs_num = tf.assign(global_step, global_step + 1)
+    with tf.control_dependencies(update_ops):
+        if args.virtual_batch  < 2:
+             train_op = opt.minimize(total_loss, global_step, var_list=vars_to_optimize, colocate_gradients_with_ops=True)
+        else:
+             accum_vars = [tf.Variable(tf.zeros_like(tv.initialized_value()), trainable=False) for tv in vars_to_optimize]
+             zero_ops = [tv.assign(tf.zeros_like(tv)) for tv in accum_vars]# gradient variable list = [ (gradient,variable) ]
+             gvs = opt.compute_gradients(virtual_batch_total_loss, var_list=vars_to_optimize, colocate_gradients_with_ops=True)
+             accum_ops = [accum_vars[i].assign_add(gv[0]) for i, gv in enumerate(gvs)]
+             train_step = opt.apply_gradients([(accum_vars[i] , gv[1]) for i, gv in enumerate(gvs)])
+             inc_gs_num = tf.assign(global_step, global_step + 1)
     print("# Defined optimizers")
     logger.info('define model-')
 
