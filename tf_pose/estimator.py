@@ -302,7 +302,7 @@ class PoseEstimator:
 class TfPoseEstimator:
     # TODO : multi-scale
 
-    def __init__(self, graph_path, target_size=(320, 240), tf_config=None):
+    def __init__(self, graph_path, input_name, output_name, target_size=(320, 240), tf_config=None):
         self.target_size = target_size
 
         # load graph
@@ -315,20 +315,20 @@ class TfPoseEstimator:
         tf.import_graph_def(graph_def, name='TfPoseEstimator')
         self.persistent_sess = tf.Session(graph=self.graph, config=tf_config)
 
-        # for op in self.graph.get_operations():
-        #     print(op.name)
-        # for ts in [n.name for n in tf.get_default_graph().as_graph_def().node]:
-        #     print(ts)
-
-        self.tensor_image = self.graph.get_tensor_by_name('TfPoseEstimator/image:0')
-        self.tensor_output = self.graph.get_tensor_by_name('TfPoseEstimator/Openpose/concat_stage7:0')
+        self.tensor_image = self.graph.get_tensor_by_name('TfPoseEstimator/%s'%input_name)
+        self.tensor_output = self.graph.get_tensor_by_name('TfPoseEstimator/%s'%output_name)
+        print ("inferene output shape: ", self.tensor_output.shape)
         self.tensor_heatMat = self.tensor_output[:, :, :, :19]
         self.tensor_pafMat = self.tensor_output[:, :, :, 19:]
+        print ("inferene output heatmaps shape: ", self.tensor_heatMat.shape)
+        print ("inferene output pafs shape: ", self.tensor_pafMat.shape)
         self.upsample_size = tf.placeholder(dtype=tf.int32, shape=(2,), name='upsample_size')
         self.tensor_heatMat_up = tf.image.resize_area(self.tensor_output[:, :, :, :19], self.upsample_size,
                                                       align_corners=False, name='upsample_heatmat')
         self.tensor_pafMat_up = tf.image.resize_area(self.tensor_output[:, :, :, 19:], self.upsample_size,
                                                      align_corners=False, name='upsample_pafmat')
+        print ("inferene output heatmaps shape: ", self.tensor_heatMat_up.shape)
+        print ("inferene output pafs shape: ", self.tensor_pafMat_up.shape)
         smoother = Smoother({'data': self.tensor_heatMat_up}, 25, 3.0)
         gaussian_heatMat = smoother.get_output()
 
@@ -336,8 +336,8 @@ class TfPoseEstimator:
         self.tensor_peaks = tf.where(tf.equal(gaussian_heatMat, max_pooled_in_tensor), gaussian_heatMat,
                                      tf.zeros_like(gaussian_heatMat))
 
+        print ("inferene output peaks shape: ", self.tensor_peaks.shape)
         self.heatMat = self.pafMat = None
-
         # warm-up
         self.persistent_sess.run(tf.variables_initializer(
             [v for v in tf.global_variables() if
@@ -537,6 +537,10 @@ class TfPoseEstimator:
             [self.tensor_peaks, self.tensor_heatMat_up, self.tensor_pafMat_up], feed_dict={
                 self.tensor_image: [img], self.upsample_size: upsample_size
             })
+        print ("runtime input shape: ", img.shape)
+        print ("runtime output heatmaps shape: ", heatMat_up.shape)
+        print ("runtime output pafs shape: ", pafMat_up.shape)
+        print ("runtime output peaks shape: ", peaks.shape)
         peaks = peaks[0]
         self.heatMat = heatMat_up[0]
         self.pafMat = pafMat_up[0]

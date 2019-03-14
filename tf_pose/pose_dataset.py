@@ -269,19 +269,13 @@ class CocoPose(RNGDataFlow):
             inp = cv2.resize(inp, target_size, interpolation=cv2.INTER_AREA)
         return inp
 
-    def __init__(self, path, img_path=None, is_train=True, decode_img=True, only_idx=-1):
+    def __init__(self, is_train=True, decode_img=True, only_idx=-1, images_dir=None, anns_file=None):
         self.is_train = is_train
         self.decode_img = decode_img
         self.only_idx = only_idx
-
-        if is_train:
-            whole_path = os.path.join(path, 'person_keypoints_train2017.json')
-        else:
-            whole_path = os.path.join(path, 'person_keypoints_val2017.json')
-        self.img_path = (img_path if img_path is not None else '') + ('train2017/' if is_train else 'val2017/')
-        self.coco = COCO(whole_path)
-
-        logger.info('%s dataset %d' % (path, self.size()))
+        self.img_path = images_dir
+        self.coco = COCO(anns_file)
+        logger.info('%s anns: %d' % (anns_file, self.size()))
 
     def size(self):
         return len(self.coco.imgs)
@@ -353,8 +347,8 @@ def read_image_url(metas):
     return metas
 
 
-def get_dataflow(path, is_train, img_path=None):
-    ds = CocoPose(path, img_path, is_train)       # read data from lmdb
+def get_dataflow(is_train, images_dir=None, anns_file=None):
+    ds = CocoPose(is_train, images_dir=images_dir, anns_file=anns_file)       # read data from lmdb
     if is_train:
         ds = MapData(ds, read_image_url)
         ds = MapDataComponent(ds, pose_random_scale)
@@ -388,9 +382,9 @@ def _get_dataflow_onlyread(path, is_train, img_path=None):
     return ds
 
 
-def get_dataflow_batch(path, is_train, batchsize, img_path=None):
-    logger.info('dataflow img_path=%s' % img_path)
-    ds = get_dataflow(path, is_train, img_path=img_path)
+def get_dataflow_batch(is_train, batchsize, images_dir=None, anns_file=None):
+    logger.info('dataflow images_dir=%s' % images_dir)
+    ds = get_dataflow(is_train, images_dir=images_dir, anns_file=anns_file)
     ds = BatchData(ds, batchsize)
     # if is_train:
     #     ds = PrefetchData(ds, 10, 2)

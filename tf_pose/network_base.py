@@ -7,6 +7,7 @@ import numpy as np
 import tensorflow as tf
 import tensorflow.contrib.slim as slim
 
+
 from tf_pose.common import to_str
 from tf_pose import common
 
@@ -90,13 +91,10 @@ class BaseNetwork(object):
                         sys.exit(-1)
             else:
                 op_name = to_str(op_name)
-                # if op_name > 'conv4':
-                #     print(op_name, 'skipped')
-                #     continue
-                # print(op_name, 'restored')
                 with tf.variable_scope(op_name, reuse=True):
                     for param_name, data in param_dict.items():
                         try:
+                            # var = tf.get_variable(param_name.decode("utf-8"))
                             var = tf.get_variable(to_str(param_name))
                             session.run(var.assign(data))
                         except ValueError as e:
@@ -170,6 +168,7 @@ class BaseNetwork(object):
 
     @layer
     def upsample(self, input, factor, name):
+        # return tf.image.resize_bilinear(input, [int(input.get_shape()[1]) * factor, int(input.get_shape()[2]) * factor], name=name)
         if isinstance(factor, str):
             sh = tf.shape(self.get_tensor(factor))[1:3]
         else:
@@ -377,13 +376,8 @@ class BaseNetwork(object):
         As described in https://arxiv.org/abs/1709.01507.
         ref : https://github.com/kobiso/SENet-tensorflow-slim/blob/master/nets/attention_module.py
         """
-
         kernel_initializer = tf.contrib.layers.variance_scaling_initializer()
         bias_initializer = tf.constant_initializer(value=0.0)
-
-        with tf.variable_scope(name):
-            channel = input_feature.get_shape()[-1]
-            # Global average pooling
             squeeze = tf.reduce_mean(input_feature, axis=[1, 2], keepdims=True)
             excitation = tf.layers.dense(inputs=squeeze,
                                          units=channel // ratio,
