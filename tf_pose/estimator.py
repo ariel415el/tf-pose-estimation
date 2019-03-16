@@ -11,7 +11,7 @@ import time
 from tf_pose import common
 from tf_pose.common import OpenPosePart
 from tf_pose.tensblur.smoother import Smoother
-
+import common
 try:
     from tf_pose.pafprocess import pafprocess
 except ModuleNotFoundError as e:
@@ -302,7 +302,7 @@ class PoseEstimator:
 class TfPoseEstimator:
     # TODO : multi-scale
 
-    def __init__(self, graph_path, input_name, output_name, target_size=(320, 240), tf_config=None):
+    def __init__(self, graph_path, input_name, output_name, target_size=(320, 240), tf_config=None, numHeatMaps=len(common.OpenPosePart)):
         self.target_size = target_size
 
         # load graph
@@ -318,14 +318,14 @@ class TfPoseEstimator:
         self.tensor_image = self.graph.get_tensor_by_name('TfPoseEstimator/%s'%input_name)
         self.tensor_output = self.graph.get_tensor_by_name('TfPoseEstimator/%s'%output_name)
         print ("inferene output shape: ", self.tensor_output.shape)
-        self.tensor_heatMat = self.tensor_output[:, :, :, :19]
-        self.tensor_pafMat = self.tensor_output[:, :, :, 19:]
+        self.tensor_heatMat = self.tensor_output[:, :, :, :numHeatMaps]
+        self.tensor_pafMat = self.tensor_output[:, :, :, numHeatMaps:]
         print ("inferene output heatmaps shape: ", self.tensor_heatMat.shape)
         print ("inferene output pafs shape: ", self.tensor_pafMat.shape)
         self.upsample_size = tf.placeholder(dtype=tf.int32, shape=(2,), name='upsample_size')
-        self.tensor_heatMat_up = tf.image.resize_area(self.tensor_output[:, :, :, :19], self.upsample_size,
+        self.tensor_heatMat_up = tf.image.resize_area(self.tensor_output[:, :, :, :numHeatMaps], self.upsample_size,
                                                       align_corners=False, name='upsample_heatmat')
-        self.tensor_pafMat_up = tf.image.resize_area(self.tensor_output[:, :, :, 19:], self.upsample_size,
+        self.tensor_pafMat_up = tf.image.resize_area(self.tensor_output[:, :, :, numHeatMaps:], self.upsample_size,
                                                      align_corners=False, name='upsample_pafmat')
         print ("inferene output heatmaps shape: ", self.tensor_heatMat_up.shape)
         print ("inferene output pafs shape: ", self.tensor_pafMat_up.shape)
