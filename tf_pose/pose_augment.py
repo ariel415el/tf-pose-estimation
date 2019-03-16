@@ -30,8 +30,8 @@ def pose_random_scale(meta):
     dst = cv2.resize(meta.img, (neww, newh), interpolation=cv2.INTER_AREA)
 
     # adjust meta data
-    adjust_joint_list = []
-    for joint in meta.joint_list:
+    adjust_skeletons = []
+    for joint in meta.skeletons:
         adjust_joint = []
         for point in joint:
             if point[0] < -100 or point[1] < -100:
@@ -42,9 +42,9 @@ def pose_random_scale(meta):
             #     adjust_joint.append((-1, -1))
             #     continue
             adjust_joint.append((int(point[0] * scalew + 0.5), int(point[1] * scaleh + 0.5)))
-        adjust_joint_list.append(adjust_joint)
+        adjust_skeletons.append(adjust_joint)
 
-    meta.joint_list = adjust_joint_list
+    meta.skeletons = adjust_skeletons
     meta.width, meta.height = neww, newh
     meta.img = dst
     return meta
@@ -90,8 +90,8 @@ def pose_resize_shortestedge(meta, target_size):
         dst = cv2.copyMakeBorder(dst, ph, ph+mh, pw, pw+mw, cv2.BORDER_CONSTANT, value=(color, 0, 0))
 
     # adjust meta data
-    adjust_joint_list = []
-    for joint in meta.joint_list:
+    adjust_skeletons = []
+    for joint in meta.skeletons:
         adjust_joint = []
         for point in joint:
             if point[0] < -100 or point[1] < -100:
@@ -101,9 +101,9 @@ def pose_resize_shortestedge(meta, target_size):
             #     adjust_joint.append((-1, -1))
             #     continue
             adjust_joint.append((int(point[0]*scale+0.5) + pw, int(point[1]*scale+0.5) + ph))
-        adjust_joint_list.append(adjust_joint)
+        adjust_skeletons.append(adjust_joint)
 
-    meta.joint_list = adjust_joint_list
+    meta.skeletons = adjust_skeletons
     meta.width, meta.height = neww + pw * 2, newh + ph * 2
     meta.img = dst
     return meta
@@ -127,7 +127,7 @@ def pose_crop_random(meta):
         y = random.randrange(0, meta.height - target_size[1]) if meta.height > target_size[1] else 0
 
         # check whether any face is inside the box to generate a reasonably-balanced datasets
-        for joint in meta.joint_list:
+        for joint in meta.skeletons:
             if x <= joint[OpenPosePart.Nose.value][0] < x + target_size[0] and y <= joint[OpenPosePart.Nose.value][1] < y + target_size[1]:
                 break
 
@@ -142,8 +142,8 @@ def pose_crop(meta, x, y, w, h):
     resized = img[y:y+target_size[1], x:x+target_size[0], :]
 
     # adjust meta data
-    adjust_joint_list = []
-    for joint in meta.joint_list:
+    adjust_skeletons = []
+    for joint in meta.skeletons:
         adjust_joint = []
         for point in joint:
             if point[0] < -100 or point[1] < -100:
@@ -157,9 +157,9 @@ def pose_crop(meta, x, y, w, h):
             #     adjust_joint.append((-1, -1))
             #     continue
             adjust_joint.append((new_x, new_y))
-        adjust_joint_list.append(adjust_joint)
+        adjust_skeletons.append(adjust_joint)
 
-    meta.joint_list = adjust_joint_list
+    meta.skeletons = adjust_skeletons
     meta.width, meta.height = target_size
     meta.img = resized
     return meta
@@ -177,8 +177,8 @@ def pose_flip(meta):
     flip_list = [OpenPosePart.Nose, OpenPosePart.Neck, OpenPosePart.LShoulder, OpenPosePart.LElbow, OpenPosePart.LWrist, OpenPosePart.RShoulder, OpenPosePart.RElbow, OpenPosePart.RWrist,
                  OpenPosePart.LHip, OpenPosePart.LKnee, OpenPosePart.LAnkle, OpenPosePart.RHip, OpenPosePart.RKnee, OpenPosePart.RAnkle,
                  OpenPosePart.LEye, OpenPosePart.REye, OpenPosePart.LEar, OpenPosePart.REar, OpenPosePart.Background]
-    adjust_joint_list = []
-    for joint in meta.joint_list:
+    adjust_skeletons = []
+    for joint in meta.skeletons:
         adjust_joint = []
         for OpenPosePart in flip_list:
             point = joint[OpenPosePart.value]
@@ -189,9 +189,9 @@ def pose_flip(meta):
             #     adjust_joint.append((-1, -1))
             #     continue
             adjust_joint.append((meta.width - point[0], point[1]))
-        adjust_joint_list.append(adjust_joint)
+        adjust_skeletons.append(adjust_joint)
 
-    meta.joint_list = adjust_joint_list
+    meta.skeletons = adjust_skeletons
 
     meta.img = img
     return meta
@@ -215,8 +215,8 @@ def pose_rotation(meta):
     img = ret[newy:newy + newh, newx:newx + neww]
 
     # adjust meta data
-    adjust_joint_list = []
-    for joint in meta.joint_list:
+    adjust_skeletons = []
+    for joint in meta.skeletons:
         adjust_joint = []
         for point in joint:
             if point[0] < -100 or point[1] < -100:
@@ -227,9 +227,9 @@ def pose_rotation(meta):
             #     continue
             x, y = _rotate_coord((meta.width, meta.height), (newx, newy), point, deg)
             adjust_joint.append((x, y))
-        adjust_joint_list.append(adjust_joint)
+        adjust_skeletons.append(adjust_joint)
 
-    meta.joint_list = adjust_joint_list
+    meta.skeletons = adjust_skeletons
     meta.width, meta.height = neww, newh
     meta.img = img
 

@@ -109,13 +109,13 @@ class CocoMetadata:
                 new_joint.append((-1000, -1000))
                 self.skeletons.append(new_joint)
 
-        # logger.debug('joint size=%d' % len(self.joint_list))
+        # logger.debug('joint size=%d' % len(self.skeletons))
 
     @jit
     def get_heatmap(self, target_size):
         heatmap = np.zeros((CocoMetadata.__num_parts, self.height, self.width), dtype=np.float32)
 
-        for joints in self.joint_list:
+        for joints in self.skeletons:
             for idx, point in enumerate(joints):
                 if point[0] < 0 or point[1] < 0:
                     continue
@@ -159,7 +159,7 @@ class CocoMetadata:
     def get_vectormap(self, target_size):
         vectormap = np.zeros((CocoMetadata.__num_parts*2, self.height, self.width), dtype=np.float32)
         countmap = np.zeros((CocoMetadata.__num_parts, self.height, self.width), dtype=np.int16)
-        for joints in self.joint_list:
+        for joints in self.skeletons:
             for plane_idx, (j_idx1, j_idx2) in enumerate(CocoMetadata.__limb_vecs):
                 j_idx1 -= 1
                 j_idx2 -= 1
