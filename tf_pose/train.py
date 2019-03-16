@@ -29,6 +29,7 @@ logger.addHandler(ch)
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Training codes for Openpose using Tensorflow')
     parser.add_argument('--model', default='vgg', help='model name')
+    parser.add_argument('--BC_format', action='store_true')
     parser.add_argument('--freeze_backbone', action='store_true')
     parser.add_argument('--input-width', type=int, default=432)
     parser.add_argument('--input-height', type=int, default=368)
@@ -56,7 +57,10 @@ if __name__ == '__main__':
     args = parser.parse_args()
     if args.gpus <= 0:
         raise Exception('gpus <= 0')
-
+    if args.BC_format:
+        num_heatmaps = len(common.BCJtaPart)
+    else:
+        num_heatmaps = len(common.OpenPosePart)
     # define input placeholder
     set_network_input_wh(args.input_width, args.input_height)
     scale = 4
@@ -70,16 +74,16 @@ if __name__ == '__main__':
     logger.info('define model+')
     with tf.device(tf.DeviceSpec(device_type="CPU")):
         input_node = tf.placeholder(tf.float32, shape=(args.batchsize, args.input_height, args.input_width, 3), name='image')
-        vectmap_node = tf.placeholder(tf.float32, shape=(args.batchsize, output_h, output_w, 38), name='vectmap')
-        heatmap_node = tf.placeholder(tf.float32, shape=(args.batchsize, output_h, output_w, 19), name='heatmap')
+        vectmap_node = tf.placeholder(tf.float32, shape=(args.batchsize, output_h, output_w, 2*num_heatmaps), name='vectmap')
+        heatmap_node = tf.placeholder(tf.float32, shape=(args.batchsize, output_h, output_w, num_heatmaps), name='heatmap')
 
         # prepare data
-        df = get_dataflow_batch(True, args.batchsize, images_dir=args.train_dir, anns_file=args.train_anns)
+        df = get_dataflow_batch(True, args.batchsize, images_dir=args.train_dir, anns_file=args.train_anns, BC_format=args.BC_format)
             # transfer inputs from ZMQ
         enqueuer = DataFlowToQueue(df, [input_node, heatmap_node, vectmap_node], queue_size=100)
         q_inp, q_heat, q_vect = enqueuer.dequeue()
 
-    df_valid = get_dataflow_batch(False, args.batchsize, images_dir=args.val_dir, anns_file=args.val_anns)
+    df_valid = get_dataflow_batch(False, args.batchsize, images_dir=args.val_dir, anns_file=args.val_anns, BC_format=args.BC_format)
     df_valid.reset_state()
     validation_cache = []
 
@@ -102,7 +106,7 @@ if __name__ == '__main__':
         with tf.device(tf.DeviceSpec(device_type="GPU", device_index=gpu_id)):
             with tf.variable_scope(tf.get_variable_scope(), reuse=(gpu_id > 0)):
                 print("### Network input size:  ",q_inp_split[gpu_id].shape)
-                net, pretrain_path, last_layer = get_network(args.model, q_inp_split[gpu_id])
+                net, pretrain_path, last_layer = get_network(args.model, q_inp_split[gpu_id], numHeatMaps=num_heatmaps)
                 if args.checkpoint:
                     pretrain_path = args.checkpoint
                 vect, heat = net.loss_last()
@@ -313,7 +317,7 @@ if __name__ == '__main__':
                         outputs,
                         feed_dict={q_inp: np.array(test_images)}
                     )
-                pafMat, heatMat = outputMat[:, :, :, 19:], outputMat[:, :, :, :19]
+                pafMat, heatMat = outputMat[:, :, :, num_heatmaps:], outputMat[:, :, :, :num_heatmaps]
 
                 test_results = []
                 

@@ -3916,44 +3916,44 @@ SWIGINTERN PyObject *Swig_var_STEP_PAF_get(void) {
 }
 
 
-SWIGINTERN int Swig_var_COCOPAIRS_SIZE_set(PyObject *) {
-  SWIG_Error(SWIG_AttributeError,"Variable COCOPAIRS_SIZE is read-only.");
+SWIGINTERN int Swig_var_OpenPosePairs_SIZE_set(PyObject *) {
+  SWIG_Error(SWIG_AttributeError,"Variable OpenPosePairs_SIZE is read-only.");
   return 1;
 }
 
 
-SWIGINTERN PyObject *Swig_var_COCOPAIRS_SIZE_get(void) {
+SWIGINTERN PyObject *Swig_var_OpenPosePairs_SIZE_get(void) {
   PyObject *pyobj = 0;
   
-  pyobj = SWIG_From_int(static_cast< int >(COCOPAIRS_SIZE));
+  pyobj = SWIG_From_int(static_cast< int >(OpenPosePairs_SIZE));
   return pyobj;
 }
 
 
-SWIGINTERN int Swig_var_COCOPAIRS_NET_set(PyObject *) {
-  SWIG_Error(SWIG_AttributeError,"Variable COCOPAIRS_NET is read-only.");
+SWIGINTERN int Swig_var_OpenPosePairs_NET_set(PyObject *) {
+  SWIG_Error(SWIG_AttributeError,"Variable OpenPosePairs_NET is read-only.");
   return 1;
 }
 
 
-SWIGINTERN PyObject *Swig_var_COCOPAIRS_NET_get(void) {
+SWIGINTERN PyObject *Swig_var_OpenPosePairs_NET_get(void) {
   PyObject *pyobj = 0;
   
-  pyobj = SWIG_NewPointerObj(SWIG_as_voidptr(COCOPAIRS_NET), SWIGTYPE_p_a_2__int,  0 );
+  pyobj = SWIG_NewPointerObj(SWIG_as_voidptr(OpenPosePairs_NET), SWIGTYPE_p_a_2__int,  0 );
   return pyobj;
 }
 
 
-SWIGINTERN int Swig_var_COCOPAIRS_set(PyObject *) {
-  SWIG_Error(SWIG_AttributeError,"Variable COCOPAIRS is read-only.");
+SWIGINTERN int Swig_var_OpenPosePairs_set(PyObject *) {
+  SWIG_Error(SWIG_AttributeError,"Variable OpenPosePairs is read-only.");
   return 1;
 }
 
 
-SWIGINTERN PyObject *Swig_var_COCOPAIRS_get(void) {
+SWIGINTERN PyObject *Swig_var_OpenPosePairs_get(void) {
   PyObject *pyobj = 0;
   
-  pyobj = SWIG_NewPointerObj(SWIG_as_voidptr(COCOPAIRS), SWIGTYPE_p_a_2__int,  0 );
+  pyobj = SWIG_NewPointerObj(SWIG_as_voidptr(OpenPosePairs), SWIGTYPE_p_a_2__int,  0 );
   return pyobj;
 }
 
@@ -5935,9 +5935,9 @@ SWIG_init(void) {
   SWIG_addvarlink(SWIG_globals(),(char*)"THRESH_HUMAN_SCORE",Swig_var_THRESH_HUMAN_SCORE_get, Swig_var_THRESH_HUMAN_SCORE_set);
   SWIG_addvarlink(SWIG_globals(),(char*)"NUM_PART",Swig_var_NUM_PART_get, Swig_var_NUM_PART_set);
   SWIG_addvarlink(SWIG_globals(),(char*)"STEP_PAF",Swig_var_STEP_PAF_get, Swig_var_STEP_PAF_set);
-  SWIG_addvarlink(SWIG_globals(),(char*)"COCOPAIRS_SIZE",Swig_var_COCOPAIRS_SIZE_get, Swig_var_COCOPAIRS_SIZE_set);
-  SWIG_addvarlink(SWIG_globals(),(char*)"COCOPAIRS_NET",Swig_var_COCOPAIRS_NET_get, Swig_var_COCOPAIRS_NET_set);
-  SWIG_addvarlink(SWIG_globals(),(char*)"COCOPAIRS",Swig_var_COCOPAIRS_get, Swig_var_COCOPAIRS_set);
+  SWIG_addvarlink(SWIG_globals(),(char*)"OpenPosePairs_SIZE",Swig_var_OpenPosePairs_SIZE_get, Swig_var_OpenPosePairs_SIZE_set);
+  SWIG_addvarlink(SWIG_globals(),(char*)"OpenPosePairs_NET",Swig_var_OpenPosePairs_NET_get, Swig_var_OpenPosePairs_NET_set);
+  SWIG_addvarlink(SWIG_globals(),(char*)"OpenPosePairs",Swig_var_OpenPosePairs_get, Swig_var_OpenPosePairs_set);
 #if PY_VERSION_HEX >= 0x03000000
   return m;
 #else

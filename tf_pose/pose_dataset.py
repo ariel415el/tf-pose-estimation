@@ -30,6 +30,7 @@ from tensorpack.dataflow.base import RNGDataFlow, DataFlowTerminated
 from pycocotools.coco import COCO
 from pose_augment import pose_flip, pose_rotation, pose_to_img, pose_crop_random, \
     pose_resize_shortestedge_random, pose_resize_shortestedge_fixed, pose_crop_center, pose_random_scale
+import common
 from numba import jit
 
 logging.getLogger("requests").setLevel(logging.WARNING)
@@ -45,13 +46,6 @@ mplset = False
 
 
 class CocoMetadata:
-    # __coco_parts = 57
-    __coco_parts = 19
-    __coco_vecs = list(zip(
-        [2, 9,  10, 2,  12, 13, 2, 3, 4, 3,  2, 6, 7, 6,  2, 1,  1,  15, 16],
-        [9, 10, 11, 12, 13, 14, 3, 4, 5, 17, 6, 7, 8, 18, 1, 15, 16, 17, 18]
-    ))
-
     @staticmethod
     def parse_float(four_np):
         assert len(four_np) == 4
@@ -62,7 +56,7 @@ class CocoMetadata:
         assert len(four_nps) % 4 == 0
         return [(CocoMetadata.parse_float(four_nps[x*4:x*4+4]) + adjust) for x in range(len(four_nps) // 4)]
 
-    def __init__(self, idx, img_url, img_meta, annotations, sigma):
+    def __init__(self, idx, img_url, img_meta, annotations, sigma, BC_format):
         self.idx = idx
         self.img_url = img_url
         self.img = None
@@ -71,7 +65,15 @@ class CocoMetadata:
         self.height = int(img_meta['height'])
         self.width = int(img_meta['width'])
 
-        joint_list = []
+        # __num_parts = 57
+        if BC_format:
+            self.__num_parts = len(common.BCJtaPart)
+            self.__limb_vecs = common.BCJtaPairs
+        else:
+            self.__num_parts = len(common.OpenPosePart)
+            self.__limb_vecs = common.OpenPosePairs
+
+        skeletons = []
         for ann in annotations:
             if ann.get('num_keypoints', 0) == 0:
                 continue
@@ -81,32 +83,37 @@ class CocoMetadata:
             ys = kp[1::3]
             vs = kp[2::3]
 
-            joint_list.append([(x, y) if v >= 1 else (-1000, -1000) for x, y, v in zip(xs, ys, vs)])
+            joints = [(x, y) if v >= 1 else (-1000, -1000) for x, y, v in zip(xs, ys, vs)] 
+            joints += [(-1000, -1000)]  # background
+            skeletons.append(joints)
 
-        self.joint_list = []
-        transform = list(zip(
-            [1, 6, 7, 9, 11, 6, 8, 10, 13, 15, 17, 12, 14, 16, 3, 2, 5, 4],
-            [1, 7, 7, 9, 11, 6, 8, 10, 13, 15, 17, 12, 14, 16, 3, 2, 5, 4]
-        ))
-        for prev_joint in joint_list:
-            new_joint = []
-            for idx1, idx2 in transform:
-                j1 = prev_joint[idx1-1]
-                j2 = prev_joint[idx2-1]
+        if BC_format:
+            self.skeletons = skeletons
+        else: # for transform coco anns to openpose anns, i.e add neck and change indices
+            self.skeletons = []
+            transform = list(zip(
+                [1, 6, 7, 9, 11, 6, 8, 10, 13, 15, 17, 12, 14, 16, 3, 2, 5, 4],
+                [1, 7, 7, 9, 11, 6, 8, 10, 13, 15, 17, 12, 14, 16, 3, 2, 5, 4]
+            ))
+            for prev_joint in skeletons:
+                new_joint = []
+                for idx1, idx2 in transform:
+                    j1 = prev_joint[idx1-1]
+                    j2 = prev_joint[idx2-1]
 
-                if j1[0] <= 0 or j1[1] <= 0 or j2[0] <= 0 or j2[1] <= 0:
-                    new_joint.append((-1000, -1000))
-                else:
-                    new_joint.append(((j1[0] + j2[0]) / 2, (j1[1] + j2[1]) / 2))
+                    if j1[0] <= 0 or j1[1] <= 0 or j2[0] <= 0 or j2[1] <= 0:
+                        new_joint.append((-1000, -1000))
+                    else:
+                        new_joint.append(((j1[0] + j2[0]) / 2, (j1[1] + j2[1]) / 2))
 
-            new_joint.append((-1000, -1000))
-            self.joint_list.append(new_joint)
+                new_joint.append((-1000, -1000))
+                self.skeletons.append(new_joint)
 
         # logger.debug('joint size=%d' % len(self.joint_list))
 
     @jit
     def get_heatmap(self, target_size):
-        heatmap = np.zeros((CocoMetadata.__coco_parts, self.height, self.width), dtype=np.float32)
+        heatmap = np.zeros((CocoMetadata.__num_parts, self.height, self.width), dtype=np.float32)
 
         for joints in self.joint_list:
             for idx, point in enumerate(joints):
@@ -150,10 +157,10 @@ class CocoMetadata:
 
     @jit
     def get_vectormap(self, target_size):
-        vectormap = np.zeros((CocoMetadata.__coco_parts*2, self.height, self.width), dtype=np.float32)
-        countmap = np.zeros((CocoMetadata.__coco_parts, self.height, self.width), dtype=np.int16)
+        vectormap = np.zeros((CocoMetadata.__num_parts*2, self.height, self.width), dtype=np.float32)
+        countmap = np.zeros((CocoMetadata.__num_parts, self.height, self.width), dtype=np.int16)
         for joints in self.joint_list:
-            for plane_idx, (j_idx1, j_idx2) in enumerate(CocoMetadata.__coco_vecs):
+            for plane_idx, (j_idx1, j_idx2) in enumerate(CocoMetadata.__limb_vecs):
                 j_idx1 -= 1
                 j_idx2 -= 1
 
@@ -269,12 +276,13 @@ class CocoPose(RNGDataFlow):
             inp = cv2.resize(inp, target_size, interpolation=cv2.INTER_AREA)
         return inp
 
-    def __init__(self, is_train=True, decode_img=True, only_idx=-1, images_dir=None, anns_file=None):
+    def __init__(self, is_train=True, decode_img=True, only_idx=-1, images_dir=None, anns_file=None, BC_format=False):
         self.is_train = is_train
         self.decode_img = decode_img
         self.only_idx = only_idx
         self.img_path = images_dir
         self.coco = COCO(anns_file)
+        self.BC_format = BC_format
         logger.info('%s anns: %d' % (anns_file, self.size()))
 
     def size(self):
@@ -299,7 +307,7 @@ class CocoPose(RNGDataFlow):
                 img_url = os.path.join(self.img_path, img_meta['file_name'])
 
             anns = self.coco.loadAnns(ann_idx)
-            meta = CocoMetadata(idx, img_url, img_meta, anns, sigma=8.0)
+            meta = CocoMetadata(idx, img_url, img_meta, anns, sigma=8.0, BC_format=self.BC_format)
 
             total_keypoints = sum([ann.get('num_keypoints', 0) for ann in anns])
             if total_keypoints == 0 and random.uniform(0, 1) > 0.2:
@@ -347,8 +355,8 @@ def read_image_url(metas):
     return metas
 
 
-def get_dataflow(is_train, images_dir=None, anns_file=None):
-    ds = CocoPose(is_train, images_dir=images_dir, anns_file=anns_file)       # read data from lmdb
+def get_dataflow(is_train, images_dir=None, anns_file=None, BC_format=False):
+    ds = CocoPose(is_train, images_dir=images_dir, anns_file=anns_file, BC_format=BC_format)       # read data from lmdb
     if is_train:
         ds = MapData(ds, read_image_url)
         ds = MapDataComponent(ds, pose_random_scale)
@@ -382,9 +390,9 @@ def _get_dataflow_onlyread(path, is_train, img_path=None):
     return ds
 
 
-def get_dataflow_batch(is_train, batchsize, images_dir=None, anns_file=None):
+def get_dataflow_batch(is_train, batchsize, images_dir=None, anns_file=None, BC_format=False):
     logger.info('dataflow images_dir=%s' % images_dir)
-    ds = get_dataflow(is_train, images_dir=images_dir, anns_file=anns_file)
+    ds = get_dataflow(is_train, images_dir=images_dir, anns_file=anns_file, BC_format=BC_format)
     ds = BatchData(ds, batchsize)
     # if is_train:
     #     ds = PrefetchData(ds, 10, 2)

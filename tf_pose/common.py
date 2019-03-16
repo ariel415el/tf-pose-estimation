@@ -10,7 +10,27 @@ batchnorm_fused = True
 activation_fn = tf.nn.relu
 
 
-class CocoPart(Enum):
+
+class BCJtaPart(Enum):
+    head_center = 0
+    neck = 1
+    left_shoulder = 2
+    right_shoulder = 3
+    left_elbow = 4
+    right_elbow = 5
+    left_wrist = 6
+    right_wrist = 7
+    left_hip = 8
+    right_hip = 9
+    left_knee = 10
+    right_knee = 11
+    left_ankle = 12
+    right_ankle = 13
+
+BCJtaPairs = [(0,1),(1,2),(1,3), (2,4),(4,6), (3,5),(5,7), (2,8),(8,10),(10,12), (3,9),(9,11),(11,13)]
+
+
+class OpenPosePart(Enum):
     Nose = 0
     Neck = 1
     RShoulder = 2
@@ -31,6 +51,17 @@ class CocoPart(Enum):
     LEar = 17
     Background = 18
 
+OpenPosePairs = [(2, 9), (9, 10), (10, 11), (2, 12), (12, 13), (13, 14), (2, 3), (3, 4),
+             (4, 5), (3, 17), (2, 6), (6, 7), (7, 8), (6, 18), (2, 1), (1, 15), (1, 16), (15, 17), (16, 18)]
+
+OpenPosePairsRender = [(1, 2), (1, 5), (2, 3), (3, 4), (5, 6), (6, 7), (1, 8), (8, 9), (9, 10),
+                     (1, 11), (11, 12), (12, 13), (1, 0), (0, 14), (14, 16), (0, 15), (15, 17)]
+
+
+CocoColors = [[255, 0, 0], [255, 85, 0], [255, 170, 0], [255, 255, 0], [170, 255, 0], [85, 255, 0], [0, 255, 0],
+              [0, 255, 85], [0, 255, 170], [0, 255, 255], [0, 170, 255], [0, 85, 255], [0, 0, 255], [85, 0, 255],
+              [170, 0, 255], [255, 0, 255], [255, 0, 170], [255, 0, 85]]
+
 
 class MPIIPart(Enum):
     RAnkle = 0
@@ -50,38 +81,21 @@ class MPIIPart(Enum):
 
     @staticmethod
     def from_coco(human):
-        # t = {
-        #     MPIIPart.RAnkle: CocoPart.RAnkle,
-        #     MPIIPart.RKnee: CocoPart.RKnee,
-        #     MPIIPart.RHip: CocoPart.RHip,
-        #     MPIIPart.LHip: CocoPart.LHip,
-        #     MPIIPart.LKnee: CocoPart.LKnee,
-        #     MPIIPart.LAnkle: CocoPart.LAnkle,
-        #     MPIIPart.RWrist: CocoPart.RWrist,
-        #     MPIIPart.RElbow: CocoPart.RElbow,
-        #     MPIIPart.RShoulder: CocoPart.RShoulder,
-        #     MPIIPart.LShoulder: CocoPart.LShoulder,
-        #     MPIIPart.LElbow: CocoPart.LElbow,
-        #     MPIIPart.LWrist: CocoPart.LWrist,
-        #     MPIIPart.Neck: CocoPart.Neck,
-        #     MPIIPart.Nose: CocoPart.Nose,
-        # }
-
         t = [
-            (MPIIPart.Head, CocoPart.Nose),
-            (MPIIPart.Neck, CocoPart.Neck),
-            (MPIIPart.RShoulder, CocoPart.RShoulder),
-            (MPIIPart.RElbow, CocoPart.RElbow),
-            (MPIIPart.RWrist, CocoPart.RWrist),
-            (MPIIPart.LShoulder, CocoPart.LShoulder),
-            (MPIIPart.LElbow, CocoPart.LElbow),
-            (MPIIPart.LWrist, CocoPart.LWrist),
-            (MPIIPart.RHip, CocoPart.RHip),
-            (MPIIPart.RKnee, CocoPart.RKnee),
-            (MPIIPart.RAnkle, CocoPart.RAnkle),
-            (MPIIPart.LHip, CocoPart.LHip),
-            (MPIIPart.LKnee, CocoPart.LKnee),
-            (MPIIPart.LAnkle, CocoPart.LAnkle),
+            (MPIIPart.Head, OpenPosePart.Nose),
+            (MPIIPart.Neck, OpenPosePart.Neck),
+            (MPIIPart.RShoulder, OpenPosePart.RShoulder),
+            (MPIIPart.RElbow, OpenPosePart.RElbow),
+            (MPIIPart.RWrist, OpenPosePart.RWrist),
+            (MPIIPart.LShoulder, OpenPosePart.LShoulder),
+            (MPIIPart.LElbow, OpenPosePart.LElbow),
+            (MPIIPart.LWrist, OpenPosePart.LWrist),
+            (MPIIPart.RHip, OpenPosePart.RHip),
+            (MPIIPart.RKnee, OpenPosePart.RKnee),
+            (MPIIPart.RAnkle, OpenPosePart.RAnkle),
+            (MPIIPart.LHip, OpenPosePart.LHip),
+            (MPIIPart.LKnee, OpenPosePart.LKnee),
+            (MPIIPart.LAnkle, OpenPosePart.LAnkle),
         ]
 
         pose_2d_mpii = []
@@ -94,21 +108,6 @@ class MPIIPart(Enum):
             pose_2d_mpii.append((human.body_parts[coco.value].x, human.body_parts[coco.value].y))
             visibilty.append(True)
         return pose_2d_mpii, visibilty
-
-CocoPairs = [
-    (1, 2), (1, 5), (2, 3), (3, 4), (5, 6), (6, 7), (1, 8), (8, 9), (9, 10), (1, 11),
-    (11, 12), (12, 13), (1, 0), (0, 14), (14, 16), (0, 15), (15, 17), (2, 16), (5, 17)
-]   # = 19
-CocoPairsRender = CocoPairs[:-2]
-# CocoPairsNetwork = [
-#     (12, 13), (20, 21), (14, 15), (16, 17), (22, 23), (24, 25), (0, 1), (2, 3), (4, 5),
-#     (6, 7), (8, 9), (10, 11), (28, 29), (30, 31), (34, 35), (32, 33), (36, 37), (18, 19), (26, 27)
-#  ]  # = 19
-
-CocoColors = [[255, 0, 0], [255, 85, 0], [255, 170, 0], [255, 255, 0], [170, 255, 0], [85, 255, 0], [0, 255, 0],
-              [0, 255, 85], [0, 255, 170], [0, 255, 255], [0, 170, 255], [0, 85, 255], [0, 0, 255], [85, 0, 255],
-              [170, 0, 255], [255, 0, 255], [255, 0, 170], [255, 0, 85]]
-
 
 def read_imgfile(path, width=None, height=None):
     val_image = cv2.imread(path, cv2.IMREAD_COLOR)

@@ -5,7 +5,7 @@ import cv2
 import numpy as np
 from tensorpack.dataflow.imgaug.geometry import RotationAndCropValid
 
-from tf_pose.common import CocoPart
+from tf_pose.common import OpenPosePart
 
 _network_w = 368
 _network_h = 368
@@ -128,7 +128,7 @@ def pose_crop_random(meta):
 
         # check whether any face is inside the box to generate a reasonably-balanced datasets
         for joint in meta.joint_list:
-            if x <= joint[CocoPart.Nose.value][0] < x + target_size[0] and y <= joint[CocoPart.Nose.value][1] < y + target_size[1]:
+            if x <= joint[OpenPosePart.Nose.value][0] < x + target_size[0] and y <= joint[OpenPosePart.Nose.value][1] < y + target_size[1]:
                 break
 
     return pose_crop(meta, x, y, target_size[0], target_size[1])
@@ -174,14 +174,14 @@ def pose_flip(meta):
     img = cv2.flip(img, 1)
 
     # flip meta
-    flip_list = [CocoPart.Nose, CocoPart.Neck, CocoPart.LShoulder, CocoPart.LElbow, CocoPart.LWrist, CocoPart.RShoulder, CocoPart.RElbow, CocoPart.RWrist,
-                 CocoPart.LHip, CocoPart.LKnee, CocoPart.LAnkle, CocoPart.RHip, CocoPart.RKnee, CocoPart.RAnkle,
-                 CocoPart.LEye, CocoPart.REye, CocoPart.LEar, CocoPart.REar, CocoPart.Background]
+    flip_list = [OpenPosePart.Nose, OpenPosePart.Neck, OpenPosePart.LShoulder, OpenPosePart.LElbow, OpenPosePart.LWrist, OpenPosePart.RShoulder, OpenPosePart.RElbow, OpenPosePart.RWrist,
+                 OpenPosePart.LHip, OpenPosePart.LKnee, OpenPosePart.LAnkle, OpenPosePart.RHip, OpenPosePart.RKnee, OpenPosePart.RAnkle,
+                 OpenPosePart.LEye, OpenPosePart.REye, OpenPosePart.LEar, OpenPosePart.REar, OpenPosePart.Background]
     adjust_joint_list = []
     for joint in meta.joint_list:
         adjust_joint = []
-        for cocopart in flip_list:
-            point = joint[cocopart.value]
+        for OpenPosePart in flip_list:
+            point = joint[OpenPosePart.value]
             if point[0] < -100 or point[1] < -100:
                 adjust_joint.append((-1000, -1000))
                 continue

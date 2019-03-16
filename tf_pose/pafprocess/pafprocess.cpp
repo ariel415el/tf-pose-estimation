@@ -44,11 +44,11 @@ int process_paf(int p1, int p2, int p3, float *peaks, int h1, int h2, int h3, fl
     }
 
     // Start to Connect
-    vector<Connection> connection_all[COCOPAIRS_SIZE];
-    for (int pair_id = 0; pair_id < COCOPAIRS_SIZE; pair_id ++) {
+    vector<Connection> connection_all[OpenPosePairs_SIZE];
+    for (int pair_id = 0; pair_id < OpenPosePairs_SIZE; pair_id ++) {
         vector<ConnectionCandidate> candidates;
-        vector<Peak>& peak_a_list = peak_infos[COCOPAIRS[pair_id][0]];
-        vector<Peak>& peak_b_list = peak_infos[COCOPAIRS[pair_id][1]];
+        vector<Peak>& peak_a_list = peak_infos[OpenPosePairs[pair_id][0]];
+        vector<Peak>& peak_b_list = peak_infos[OpenPosePairs[pair_id][1]];
 
         if (peak_a_list.size() == 0 || peak_b_list.size() == 0) {
             continue;
@@ -68,7 +68,7 @@ int process_paf(int p1, int p2, int p3, float *peaks, int h1, int h2, int h3, fl
                 vec.x = vec.x / norm;
                 vec.y = vec.y / norm;
 
-                vector<VectorXY> paf_vecs = get_paf_vectors(pafmap, COCOPAIRS_NET[pair_id][0], COCOPAIRS_NET[pair_id][1], f2, f3, peak_a, peak_b);
+                vector<VectorXY> paf_vecs = get_paf_vectors(pafmap, OpenPosePairs_NET[pair_id][0], OpenPosePairs_NET[pair_id][1], f2, f3, peak_a, peak_b);
                 float scores = 0.0f;
 
                 // criterion 1 : score treshold count
@@ -126,10 +126,10 @@ int process_paf(int p1, int p2, int p3, float *peaks, int h1, int h2, int h3, fl
 
     // Generate subset
     subset.clear();
-    for (int pair_id = 0; pair_id < COCOPAIRS_SIZE; pair_id ++) {
+    for (int pair_id = 0; pair_id < OpenPosePairs_SIZE; pair_id ++) {
         vector<Connection>& conns = connection_all[pair_id];
-        int part_id1 = COCOPAIRS[pair_id][0];
-        int part_id2 = COCOPAIRS[pair_id][1];
+        int part_id1 = OpenPosePairs[pair_id][0];
+        int part_id2 = OpenPosePairs[pair_id][1];
 
         for (int conn_id = 0; conn_id < (int) conns.size(); conn_id ++) {
             int found = 0;
