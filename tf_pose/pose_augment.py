@@ -4,6 +4,7 @@ import random
 import cv2
 import numpy as np
 from tensorpack.dataflow.imgaug.geometry import RotationAndCropValid
+import common
 
 _network_w = 368
 _network_h = 368
@@ -164,7 +165,7 @@ def pose_crop(meta, x, y, w, h):
     return meta
 
 
-def pose_flip(meta, flipped_parts_list):
+def pose_flip(meta):
     r = random.uniform(0, 1.0)
     if r > 0.5:
         return meta
@@ -175,7 +176,7 @@ def pose_flip(meta, flipped_parts_list):
     adjust_skeletons = []
     for joint in meta.skeletons:
         adjust_joint = []
-        for partIdx in flipped_parts_list:
+        for partIdx in common.BC_flipped_indices:
             point = joint[partIdx]
             if point[0] < -100 or point[1] < -100:
                 adjust_joint.append((-1000, -1000))

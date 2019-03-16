@@ -137,13 +137,13 @@ if __name__ == '__main__':
 
             a = fig.add_subplot(2, 3, 4)
             a.set_title('Vectormap-x')
-            # plt.imshow(CocoPose.get_bgimg(inp, target_size=(vectmap.shape[1], vectmap.shape[0])), alpha=0.5)
+            # plt.imshow(CocoToolPoseDataReader.get_bgimg(inp, target_size=(vectmap.shape[1], vectmap.shape[0])), alpha=0.5)
             plt.imshow(tmp2_odd, cmap=plt.cm.gray, alpha=0.5)
             plt.colorbar()
 
             a = fig.add_subplot(2, 3, 5)
             a.set_title('Vectormap-y')
-            # plt.imshow(CocoPose.get_bgimg(inp, target_size=(vectmap.shape[1], vectmap.shape[0])), alpha=0.5)
+            # plt.imshow(CocoToolPoseDataReader.get_bgimg(inp, target_size=(vectmap.shape[1], vectmap.shape[0])), alpha=0.5)
             plt.imshow(tmp2_even, cmap=plt.cm.gray, alpha=0.5)
             plt.colorbar()
 
