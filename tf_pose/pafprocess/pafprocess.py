@@ -131,9 +131,9 @@ THRESH_PART_CNT = cvar.THRESH_PART_CNT
 THRESH_HUMAN_SCORE = cvar.THRESH_HUMAN_SCORE
 NUM_PART = cvar.NUM_PART
 STEP_PAF = cvar.STEP_PAF
-COCOPAIRS_SIZE = cvar.COCOPAIRS_SIZE
-COCOPAIRS_NET = cvar.COCOPAIRS_NET
-COCOPAIRS = cvar.COCOPAIRS
+OpenPosePairs_SIZE = cvar.OpenPosePairs_SIZE
+OpenPosePairs_NET = cvar.OpenPosePairs_NET
+OpenPosePairs = cvar.OpenPosePairs
 
 class VectorXY(_object):
     __swig_setmethods__ = {}
