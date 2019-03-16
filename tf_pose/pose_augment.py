@@ -5,8 +5,6 @@ import cv2
 import numpy as np
 from tensorpack.dataflow.imgaug.geometry import RotationAndCropValid
 
-from tf_pose.common import OpenPosePart
-
 _network_w = 368
 _network_h = 368
 _scale = 2
@@ -127,8 +125,9 @@ def pose_crop_random(meta):
         y = random.randrange(0, meta.height - target_size[1]) if meta.height > target_size[1] else 0
 
         # check whether any face is inside the box to generate a reasonably-balanced datasets
+        enumIndex = 0 # Coco:Nose, BC: headCenter
         for joint in meta.skeletons:
-            if x <= joint[OpenPosePart.Nose.value][0] < x + target_size[0] and y <= joint[OpenPosePart.Nose.value][1] < y + target_size[1]:
+            if x <= joint[enumIndex][0] < x + target_size[0] and y <= joint[enumIndex][1] < y + target_size[1]:
                 break
 
     return pose_crop(meta, x, y, target_size[0], target_size[1])
@@ -165,7 +164,7 @@ def pose_crop(meta, x, y, w, h):
     return meta
 
 
-def pose_flip(meta):
+def pose_flip(meta, flipped_parts_list):
     r = random.uniform(0, 1.0)
     if r > 0.5:
         return meta
@@ -173,15 +172,11 @@ def pose_flip(meta):
     img = meta.img
     img = cv2.flip(img, 1)
 
-    # flip meta
-    flip_list = [OpenPosePart.Nose, OpenPosePart.Neck, OpenPosePart.LShoulder, OpenPosePart.LElbow, OpenPosePart.LWrist, OpenPosePart.RShoulder, OpenPosePart.RElbow, OpenPosePart.RWrist,
-                 OpenPosePart.LHip, OpenPosePart.LKnee, OpenPosePart.LAnkle, OpenPosePart.RHip, OpenPosePart.RKnee, OpenPosePart.RAnkle,
-                 OpenPosePart.LEye, OpenPosePart.REye, OpenPosePart.LEar, OpenPosePart.REar, OpenPosePart.Background]
     adjust_skeletons = []
     for joint in meta.skeletons:
         adjust_joint = []
-        for OpenPosePart in flip_list:
-            point = joint[OpenPosePart.value]
+        for partIdx in flipped_parts_list:
+            point = joint[partIdx]
             if point[0] < -100 or point[1] < -100:
                 adjust_joint.append((-1000, -1000))
                 continue

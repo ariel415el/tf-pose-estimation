@@ -361,7 +361,7 @@ def get_dataflow(is_train, images_dir=None, anns_file=None, BC_format=False):
         ds = MapData(ds, read_image_url)
         ds = MapDataComponent(ds, pose_random_scale)
         ds = MapDataComponent(ds, pose_rotation)
-        ds = MapDataComponent(ds, pose_flip)
+        ds = MapDataComponent(ds, lambda: pose_flip(common.BCJtaFlippedParts if BC_format else common.OpenPoseFlippedParts))
         ds = MapDataComponent(ds, pose_resize_shortestedge_random)
         ds = MapDataComponent(ds, pose_crop_random)
         ds = MapData(ds, pose_to_img)
