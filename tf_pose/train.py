@@ -14,6 +14,7 @@ from tqdm import tqdm
 from pose_dataset import get_dataflow_batch, DataFlowToQueue, CocoPose
 from pose_augment import set_network_input_wh, set_network_scale
 from common import get_sample_images
+import common
 from networks import get_network
 
 logger = logging.getLogger('train')
