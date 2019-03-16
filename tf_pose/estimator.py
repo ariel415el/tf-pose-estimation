@@ -9,7 +9,7 @@ import tensorflow as tf
 import time
 
 from tf_pose import common
-from tf_pose.common import OpenPosePart
+from tf_pose.common import BC_pairs
 from tf_pose.tensblur.smoother import Smoother
 import common
 try:
@@ -91,12 +91,12 @@ class Human:
         :return:
         """
         # SEE : https://github.com/ildoonet/tf-pose-estimation/blob/master/tf_pose/common.py#L13
-        _NOSE = OpenPosePart.Nose.value
-        _NECK = OpenPosePart.Neck.value
-        _REye = OpenPosePart.REye.value
-        _LEye = OpenPosePart.LEye.value
-        _REar = OpenPosePart.REar.value
-        _LEar = OpenPosePart.LEar.value
+        _NOSE = BC_pairs.Nose.value
+        _NECK = BC_pairs.Neck.value
+        _REye = BC_pairs.REye.value
+        _LEye = BC_pairs.LEye.value
+        _REar = BC_pairs.REar.value
+        _LEar = BC_pairs.LEar.value
 
         _THRESHOLD_PART_CONFIDENCE = 0.2
         parts = [part for idx, part in self.body_parts.items() if part.score > _THRESHOLD_PART_CONFIDENCE]
@@ -173,10 +173,10 @@ class Human:
         if not (img_w > 0 and img_h > 0):
             raise Exception("img size should be positive")
 
-        _NOSE = OpenPosePart.Nose.value
-        _NECK = OpenPosePart.Neck.value
-        _RSHOULDER = OpenPosePart.RShoulder.value
-        _LSHOULDER = OpenPosePart.LShoulder.value
+        _NOSE = BC_pairs.Nose.value
+        _NECK = BC_pairs.Neck.value
+        _RSHOULDER = BC_pairs.RShoulder.value
+        _LSHOULDER = BC_pairs.LShoulder.value
         _THRESHOLD_PART_CONFIDENCE = 0.3
         parts = [part for idx, part in self.body_parts.items() if part.score > _THRESHOLD_PART_CONFIDENCE]
         part_coords = [(img_w * part.x, img_h * part.y) for part in parts if
@@ -256,7 +256,7 @@ class BodyPart:
         self.score = score
 
     def get_part_name(self):
-        return OpenPosePart(self.part_idx)
+        return BC_pairs(self.part_idx)
 
     def __str__(self):
         return 'BodyPart:%d-(%.2f, %.2f) score=%.2f' % (self.part_idx, self.x, self.y, self.score)
@@ -302,7 +302,7 @@ class PoseEstimator:
 class TfPoseEstimator:
     # TODO : multi-scale
 
-    def __init__(self, graph_path, input_name, output_name, target_size=(320, 240), tf_config=None, numHeatMaps=len(common.OpenPosePart)):
+    def __init__(self, graph_path, input_name, output_name, target_size=(320, 240), tf_config=None, numHeatMaps=len(common.BC_pairs)):
         self.target_size = target_size
 
         # load graph
@@ -395,7 +395,7 @@ class TfPoseEstimator:
         centers = {}
         for human in humans:
             # draw point
-            for i in range(common.OpenPosePart.Background.value):
+            for i in range(common.BC_pairs.Background.value):
                 if i not in human.body_parts.keys():
                     continue
 
