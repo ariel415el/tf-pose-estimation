@@ -15,7 +15,7 @@ def _get_base_path():
     return os.environ.get('OPENPOSE_MODEL')
 
 
-def get_network(type, placeholder_input, sess_for_load=None, trainable=True, numHeatMaps=16, numPafMaps=26):
+def get_network(type, placeholder_input, sess_for_load=None, trainable=True, numHeatMaps=15, numPafMaps=26):
     if type == 'mobilenet':
         net = MobilenetNetwork({'image': placeholder_input}, conv_width=0.75, conv_width2=1.00, trainable=trainable)
         pretrain_path = 'pretrained/mobilenet_v1_0.75_224_2017_06_14/mobilenet_v1_0.75_224.ckpt'
