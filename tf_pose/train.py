@@ -85,8 +85,9 @@ if __name__ == '__main__':
     df_valid.reset_state()
     validation_cache = []
 
-    val_image = get_sample_images(args.input_width, args.input_height)
-    logger.debug('tensorboard val image: %d' % len(val_image))
+    test_images = get_sample_images(args.input_width, args.input_height)
+    num_debug_images = (len(test_images) // args.batchsize) * args.batchsize
+    logger.debug('### Num test image: %d/%d' % (len(test_images), num_debug_images))
     logger.debug(q_inp)
     logger.debug(q_heat)
     logger.debug(q_vect)
@@ -186,8 +187,8 @@ if __name__ == '__main__':
     valid_loss_ll = tf.placeholder(tf.float32, shape=[])
     valid_loss_ll_paf = tf.placeholder(tf.float32, shape=[])
     valid_loss_ll_heat = tf.placeholder(tf.float32, shape=[])
-    sample_valid = tf.placeholder(tf.float32, shape=(args.batchsize, 640, 640, 3))
-    valid_img = tf.summary.image('validation sample', sample_valid, args.batchsize)
+    sample_valid = tf.placeholder(tf.float32, shape=(num_debug_images, 640, 640, 3))
+    valid_img = tf.summary.image('validation sample', sample_valid, num_debug_images)
     valid_loss_t = tf.summary.scalar("loss_valid", valid_loss)
     valid_loss_ll_t = tf.summary.scalar("loss_valid_lastlayer", valid_loss_ll)
     merged_validate_op = tf.summary.merge([ valid_img, valid_loss_t, valid_loss_ll_t])
@@ -262,7 +263,7 @@ if __name__ == '__main__':
 
                 file_writer.add_summary(summary, gs_num)
 
-            if gs_num - last_gs_num2 >= 1000:
+            if gs_num - last_gs_num2 >= 100:
                 # save weights
                 saver.save(sess, os.path.join(args.modelpath, training_name, 'model'), global_step=global_step)
 
@@ -291,30 +292,23 @@ if __name__ == '__main__':
                 logger.info('validation(%d) %s loss=%f, loss_ll=%f, loss_ll_paf=%f, loss_ll_heat=%f' % (total_cnt, training_name, average_loss / total_cnt, average_loss_ll / total_cnt, average_loss_ll_paf / total_cnt, average_loss_ll_heat / total_cnt))
                 last_gs_num2 = gs_num
 
-                if args.batchsize < len(val_image) :
-                   outputMaps = []
-                   test_images = val_image
-                   for i in range(len(val_image) // args.batchsize) :
-                        idx = i*args.batchsize
-                        chunk = test_images[idx:idx+args.batchsize]
-                        outputMat = sess.run(
-                            outputs,
-                            feed_dict={q_inp: np.array(chunk)}
-                        )
-                        outputMaps += [outputMat]
-                   outputMat = np.concatenate(outputMaps, axis=0)
+                outputMaps = []
+                # assumes more test images than batch size
+                for i in range(len(test_images) // args.batchsize) :
+                     idx = i*args.batchsize
+                     chunk = test_images[idx:idx+args.batchsize]
+                     outputMat = sess.run(
+                         outputs,
+                         feed_dict={q_inp: np.array(chunk)}
+                     )
+                     outputMaps += [outputMat]
+                outputMat = np.concatenate(outputMaps, axis=0)
                    
-                else:
-                    test_images = val_image + [random.choice(val_image) for z in range(args.batchsize - len(val_image))]
-                    outputMat = sess.run(
-                        outputs,
-                        feed_dict={q_inp: np.array(test_images)}
-                    )
                 pafMat, heatMat = outputMat[:, :, :, num_heatmaps:], outputMat[:, :, :, :num_heatmaps]
 
                 test_results = []
                 
-                for i in range(args.batchsize):
+                for i in range(num_debug_images):
                     test_result = CocoToolPoseDataReader.display_image(test_images[i], heatMat[i], pafMat[i], as_numpy=True)
                     test_result = cv2.resize(test_result, (640, 640))
                     test_result = test_result.reshape([640, 640, 3]).astype(float)
