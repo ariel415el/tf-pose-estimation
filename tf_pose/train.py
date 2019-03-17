@@ -238,7 +238,6 @@ if __name__ == '__main__':
         last_gs_num = last_gs_num2 = 0
         initial_gs_num = sess.run(global_step)
     
-        last_log_epoch1 = last_log_epoch2 = -1
         while True:
             if args.virtual_batch  < 2:
                 _, gs_num = sess.run([train_op, global_step])
@@ -249,7 +248,6 @@ if __name__ == '__main__':
                 sess.run([train_step, inc_gs_num])
                 gs_num = global_step.eval();
                 #rint("### done aggregating %d gradients. now back propping. gs_num=%d"%(args.virtual_batch, gs_num))
-            curr_epoch = float(gs_num) / step_per_epoch
             if (gs_num > step_per_epoch * args.max_epoch) or (gs_num > args.max_iter):
                 break
 
@@ -263,9 +261,6 @@ if __name__ == '__main__':
                 last_gs_num = gs_num
 
                 file_writer.add_summary(summary, gs_num)
-                if last_log_epoch1 < curr_epoch:
-                    file_writer.add_summary(summary, curr_epoch)
-                    last_log_epoch1 = curr_epoch
 
             if gs_num - last_gs_num2 >= 1000:
                 # save weights
@@ -333,7 +328,6 @@ if __name__ == '__main__':
                     valid_loss_ll_heat: average_loss_ll_heat / total_cnt,
                     sample_valid: test_results
                 })
-                file_writer.add_summary(summary, gs_num)
                 file_writer.add_summary(summary, gs_num)
 
         saver.save(sess, os.path.join(args.modelpath, training_name, 'model'), global_step=global_step)
