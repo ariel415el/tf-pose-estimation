@@ -311,15 +311,19 @@ def read_image_url(metas):
     return metas
 
 
-def get_dataflow(is_train, images_dir=None, anns_file=None):
+def get_dataflow(is_train, images_dir=None, anns_file=None, augment=True):
     ds = CocoToolPoseDataReader(is_train, images_dir=images_dir, anns_file=anns_file)       # read data from lmdb
     if is_train:
         ds = MapData(ds, read_image_url)
-        ds = MapDataComponent(ds, pose_random_scale)
-        ds = MapDataComponent(ds, pose_rotation)
-        ds = MapDataComponent(ds, pose_flip)
-        ds = MapDataComponent(ds, pose_resize_shortestedge_random)
-        ds = MapDataComponent(ds, pose_crop_random)
+        if augment:
+            ds = MapDataComponent(ds, pose_random_scale)
+            ds = MapDataComponent(ds, pose_rotation)
+            ds = MapDataComponent(ds, pose_flip)
+            ds = MapDataComponent(ds, pose_resize_shortestedge_random)
+            ds = MapDataComponent(ds, pose_crop_random)
+        else:
+            ds = MapDataComponent(ds, pose_resize_shortestedge_fixed)
+            ds = MapDataComponent(ds, pose_crop_center)
         ds = MapData(ds, pose_to_img)
         # augs = [
         #     imgaug.RandomApplyAug(imgaug.RandomChooseAug([
@@ -346,9 +350,9 @@ def _get_dataflow_onlyread(path, is_train, img_path=None):
     return ds
 
 
-def get_dataflow_batch(is_train, batchsize, images_dir=None, anns_file=None):
+def get_dataflow_batch(is_train, batchsize, images_dir=None, anns_file=None, augment=True):
     logger.info('dataflow images_dir=%s' % images_dir)
-    ds = get_dataflow(is_train, images_dir=images_dir, anns_file=anns_file)
+    ds = get_dataflow(is_train, images_dir=images_dir, anns_file=anns_file, augment=augment)
     ds = BatchData(ds, batchsize)
     # if is_train:
     #     ds = PrefetchData(ds, 10, 2)
