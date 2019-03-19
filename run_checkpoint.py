@@ -22,9 +22,9 @@ if __name__ == '__main__':
     parser.add_argument('--model', type=str, default='cmu', help='cmu / mobilenet / mobilenet_thin / mobilenet_v2_large / mobilenet_v2_small')
     parser.add_argument('--resize', type=str, default='0x0')
     parser.add_argument('--quantize', action='store_true')
-	parser.add_argument('--ckp', type=str, help='checkpoint path')
-	parser.add_argument('--trainable',  action='store_true')
-	parser.add_argument('--name', type=str, default='model')
+    parser.add_argument('--ckp', type=str, help='checkpoint path')
+    parser.add_argument('--trainable',  action='store_true')
+    parser.add_argument('--name', type=str, default='model')
     args = parser.parse_args()
 
     w, h = model_wh(args.resize)
@@ -40,7 +40,7 @@ if __name__ == '__main__':
     with tf.Session(config=config) as sess:
         loader = tf.train.Saver(net.restorable_variables())
         loader.restore(sess, pretrain_path)
-		tf.train.write_graph(sess.graph_def, os.path.dirname(args.ckp), args.name + '.pb', as_text=True)
+        tf.train.write_graph(sess.graph_def, os.path.dirname(args.ckp), args.name + '.pb', as_text=True)
 
         flops = tf.profiler.profile(None, cmd='graph', options=tf.profiler.ProfileOptionBuilder.float_operation())
         print('FLOP = ', flops.total_float_ops / float(1e6))

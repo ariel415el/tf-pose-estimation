@@ -11,7 +11,7 @@ import time
 from tf_pose import common
 from tf_pose.common import BC_pairs
 from tf_pose.tensblur.smoother import Smoother
-import common
+import tf_pose.common
 try:
     from tf_pose.pafprocess import pafprocess
 except ModuleNotFoundError as e:

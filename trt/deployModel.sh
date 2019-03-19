@@ -23,14 +23,14 @@ echo ++++++++++++++++++++++++++++++++++++++
 echo ++++++ Test checkpoint  ++++++++++++++
 echo ++++++++++++++++++++++++++++++++++++++
 
-python3 "${TF_DIR}"/tf_pose/train_like_inference.py --checkpoint "${NEW_DIR}/${MODEL}"  --out_path "${NEW_DIR}"/heatMaps --model_name "${MODEL_TYPE}"
+#python3 "${TF_DIR}"/tf_pose/train_like_inference.py --checkpoint "${NEW_DIR}/${MODEL}"  --out_path "${NEW_DIR}"/heatMaps --model_name "${MODEL_TYPE}"
 
 echo ++++++++++++++++++++++++++++++++++++++
 echo ++++++ Load checkpoint input +++++++++
 echo ++++++++++++++++++++++++++++++++++++++
 
-python3 "${TF_DIR}"/run_checkpoint.py --model "${MODEL_TYPE}" --ckp "${NEW_DIR}/${MODEL}" --name "${MODEL}"-def --width "${WIDTH}" --height "${HEIGHT}"
- 
+python3 "${TF_DIR}"/run_checkpoint.py --model "${MODEL_TYPE}" --ckp "${NEW_DIR}/${MODEL}" --name "${MODEL}"-def --resize "${WIDTH}"x"${HEIGHT}"
+exit 0 
 
 echo ++++++++++++++++++++++++++++++++++++++
 echo +++++++++ Freeze model +++++++++++++++
