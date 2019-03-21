@@ -7,7 +7,7 @@ import cv2
 import numpy as np
 import tensorflow as tf
 from common import get_sample_images
-from pose_dataset import  CocoPose
+from pose_dataset import  CocoToolPoseDataReader
 from networks import get_network
 
 
@@ -55,7 +55,7 @@ if __name__ == '__main__':
         outputMat = sess.run(outputs, feed_dict={input_node: inp})
         pafMat, heatMat = outputMat[:, :, :, 19:], outputMat[:, :, :, :19]
         for i in range(num_images):
-            test_result = CocoPose.display_image(test_images[i], heatMat[i], pafMat[i], as_numpy=True).astype(float)
+            test_result = CocoToolPoseDataReader.display_image(test_images[i], heatMat[i], pafMat[i], as_numpy=True).astype(float)
             test_result = cv2.resize(test_result, (640, 640))
             test_result = test_result.reshape([640, 640, 3]).astype(float)
             # cv2.imwrite(os.path.join(args.out_path,"all_hm_%d.png"%i),heatMat[i][-1])
