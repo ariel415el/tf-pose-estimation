@@ -30,7 +30,6 @@ if __name__ == '__main__':
     w, h = model_wh(args.resize)
     if w <= 0 or h <= 0:
         w = h = None
-    print(w, h)
     input_node = tf.placeholder(tf.float32, shape=(1, h, w, 3), name='image')
 
     net, pretrain_path, last_layer = get_network(args.model, input_node, None, trainable=args.trainable)
@@ -42,7 +41,8 @@ if __name__ == '__main__':
         loader.restore(sess, pretrain_path)
         tf.train.write_graph(sess.graph_def, os.path.dirname(args.ckp), args.name + '.pb', as_text=True)
 
-        flops = tf.profiler.profile(None, cmd='graph', options=tf.profiler.ProfileOptionBuilder.float_operation())
-        print('FLOP = ', flops.total_float_ops / float(1e6))
-        # saver = tf.train.Saver(max_to_keep=100)
-        # saver.save(sess, './tmp/chk', global_step=1)
+        #flops = tf.profiler.profile(None, cmd='graph', options=tf.profiler.ProfileOptionBuilder.float_operation())
+        #print('FLOP = ', flops.total_float_ops / float(1e6))
+        #saver = tf.train.Saver(max_to_keep=100)
+        #saver.save(sess, os.path.join(os.path.dirname(args.ckp), "generated_checkpoint"), global_step=1)
+
