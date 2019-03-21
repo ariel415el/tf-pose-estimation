@@ -258,7 +258,7 @@ if __name__ == '__main__':
                 # log of training loss / accuracy
                 batch_per_sec = (gs_num - initial_gs_num) / (time.time() - time_started)
                 ex_per_sec = batch_per_sec * real_batch_size
-                logger.info('epoch=%.2f step=%d, %0.4f examples/sec lr=%f, loss=%g, loss_ll=%g, loss_ll_paf=%g, loss_ll_heat=%g' % (gs_num / step_per_epoch, gs_num, batch_per_sec * args.batchsize, lr_val, train_loss, train_loss_ll, train_loss_ll_paf, train_loss_ll_heat))
+                logger.info('epoch=%.2f step=%d, %0.4f examples/sec lr=%f, loss=%g, loss_ll=%g, loss_ll_paf=%g, loss_ll_heat=%g' % (gs_num / step_per_epoch, gs_num, ex_per_sec, lr_val, train_loss, train_loss_ll, train_loss_ll_paf, train_loss_ll_heat))
                 last_gs_num = gs_num
 
                 file_writer.add_summary(summary, gs_num)
