@@ -34,18 +34,18 @@ if __name__ == '__main__':
 
     w, h = model_wh(args.resize)
     if w == 0 or h == 0:
-        e = TfPoseEstimator(get_graph_path(args.model), target_size=(432, 368))
+        e = TfPoseEstimator(args.model,input_name="image:0", output_name="Openpose/concat_stage7:0", target_size=(432, 368))
     else:
-        e = TfPoseEstimator(get_graph_path(args.model), target_size=(w, h))
+        e = TfPoseEstimator(args.model,input_name="image:0", output_name="Openpose/concat_stage7:0", target_size=(w, h))
 
     # estimate human poses from a single image !
-    image = common.read_imgfile(args.image, None, None)
+    image = common.read_imgfile(args.image, w, h)
     if image is None:
         logger.error('Image can not be read, path=%s' % args.image)
         sys.exit(-1)
 
     t = time.time()
-    humans = e.inference(image, resize_to_default=(w > 0 and h > 0), upsample_size=args.resize_out_ratio)
+    humans = e.inference(image, False, upsample_size=args.resize_out_ratio)
     elapsed = time.time() - t
 
     logger.info('inference image: %s in %.4f seconds.' % (args.image, elapsed))
@@ -85,7 +85,7 @@ if __name__ == '__main__':
         # plt.imshow(CocoToolPoseDataReader.get_bgimg(inp, target_size=(vectmap.shape[1], vectmap.shape[0])), alpha=0.5)
         plt.imshow(tmp2_even, cmap=plt.cm.gray, alpha=0.5)
         plt.colorbar()
-        plt.show()
+        plt.savefig("/home/CoreNew/PoseEestimation/out.png")
     except Exception as e:
         logger.warning('matplitlib error, %s' % e)
         cv2.imshow('result', image)

@@ -37,12 +37,12 @@ if __name__ == '__main__':
         g = tf.get_default_graph()
         tf.contrib.quantize.create_eval_graph(input_graph=g)
     with tf.Session(config=config) as sess:
-        loader = tf.train.Saver(net.restorable_variables())
-        loader.restore(sess, pretrain_path)
+        loader = tf.train.Saver()#net.restorable_variables())
+        loader.restore(sess, args.ckp)
         tf.train.write_graph(sess.graph_def, os.path.dirname(args.ckp), args.name + '.pb', as_text=True)
 
         #flops = tf.profiler.profile(None, cmd='graph', options=tf.profiler.ProfileOptionBuilder.float_operation())
         #print('FLOP = ', flops.total_float_ops / float(1e6))
-        #saver = tf.train.Saver(max_to_keep=100)
-        #saver.save(sess, os.path.join(os.path.dirname(args.ckp), "generated_checkpoint"), global_step=1)
+        saver = tf.train.Saver(max_to_keep=100)
+        saver.save(sess, os.path.join(os.path.dirname(args.ckp), "generated_checkpoint"), global_step=1)
 
