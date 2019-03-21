@@ -515,7 +515,7 @@ class TfPoseEstimator:
         else:
             return cropped
 
-    def inference(self, npimg, resize_to_default=True, upsample_size=1.0)#, out_dir=None):
+    def inference(self, npimg, resize_to_default=True, upsample_size=1.0):
         if npimg is None:
             raise Exception('The image is not valid. Please check your image exists.')
 
@@ -550,9 +550,6 @@ class TfPoseEstimator:
         t = time.time()
         humans = PoseEstimator.estimate_paf(peaks, self.heatMat, self.pafMat)
         print(self.heatMat.shape, self.pafMat.shape)
-        #for i in range(12):
-        #    cv2.imwrite(os.path.join(out_dir,"heat%d.png"%i), self.heatMat[:,:,i])
-        #    cv2.imwrite(os.path.join(out_dir,"paf%d.png"%i), self.pafMat[:,:,i])
         logger.debug('estimate time=%.5f' % (time.time() - t))
         return humans
 
