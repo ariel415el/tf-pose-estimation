@@ -115,7 +115,7 @@ def get_network(type, placeholder_input, sess_for_load=None, trainable=True, num
                 'mobilenet_v2_small': 'trained/mobilenet_v2_w0.5_r0.5/model_latest-380401',
             }
                  
-            ckpt_path = os.path.join(_get_base_path(), ckp if ckp is not None else ckpts[type])
+            ckpt_path = ckp if ckp is not None else os.path.join(_get_base_path(),ckpts[type])
             #ckpt_path = os.path.join(_get_base_path(), ckp)
             loader = tf.train.Saver()
             try:
