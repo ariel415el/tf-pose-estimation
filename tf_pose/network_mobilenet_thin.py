@@ -3,7 +3,7 @@ from __future__ import absolute_import
 import tensorflow as tf
 
 from tf_pose import network_base
-import common
+import tf_pose.common
 
 
 class MobilenetNetworkThin(network_base.BaseNetwork):

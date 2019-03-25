@@ -15,7 +15,7 @@ def _get_base_path():
     return os.environ.get('OPENPOSE_MODEL')
 
 
-def get_network(type, placeholder_input, sess_for_load=None, trainable=True, numHeatMaps=15, numPafMaps=26):
+def get_network(type, placeholder_input, sess_for_load=None, trainable=True, numHeatMaps=15, numPafMaps=26, ckp=None):
     if type == 'mobilenet':
         net = MobilenetNetwork({'image': placeholder_input}, conv_width=0.75, conv_width2=1.00, trainable=trainable)
         pretrain_path = 'pretrained/mobilenet_v1_0.75_224_2017_06_14/mobilenet_v1_0.75_224.ckpt'
@@ -115,7 +115,7 @@ def get_network(type, placeholder_input, sess_for_load=None, trainable=True, num
                 'mobilenet_v2_small': 'trained/mobilenet_v2_w0.5_r0.5/model_latest-380401',
             }
                  
-            ckpt_path = os.path.join(_get_base_path(), ckpts[type])
+            ckpt_path = ckp if ckp is not None else os.path.join(_get_base_path(),ckpts[type])
             #ckpt_path = os.path.join(_get_base_path(), ckp)
             loader = tf.train.Saver()
             try:

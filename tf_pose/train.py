@@ -31,6 +31,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Training codes for Openpose using Tensorflow')
     parser.add_argument('--model', default='vgg', help='model name')
     parser.add_argument('--freeze_backbone', action='store_true')
+    parser.add_argument('--no_augmentation', action='store_false')
     parser.add_argument('--input-width', type=int, default=432)
     parser.add_argument('--input-height', type=int, default=368)
     parser.add_argument('--checkpoint', type=str, default='')
@@ -76,7 +77,7 @@ if __name__ == '__main__':
         heatmap_node = tf.placeholder(tf.float32, shape=(args.batchsize, output_h, output_w, num_heatmaps), name='heatmap')
 
         # prepare data
-        df = get_dataflow_batch(True, args.batchsize, images_dir=args.train_dir, anns_file=args.train_anns)
+        df = get_dataflow_batch(True, args.batchsize, images_dir=args.train_dir, anns_file=args.train_anns, augment=args.no_augmentation)
             # transfer inputs from ZMQ
         enqueuer = DataFlowToQueue(df, [input_node, heatmap_node, vectmap_node], queue_size=100)
         q_inp, q_heat, q_vect = enqueuer.dequeue()
@@ -256,7 +257,7 @@ if __name__ == '__main__':
                 # log of training loss / accuracy
                 batch_per_sec = (gs_num - initial_gs_num) / (time.time() - time_started)
                 ex_per_sec = batch_per_sec * real_batch_size
-                logger.info('epoch=%.2f step=%d, %0.4f examples/sec lr=%f, loss=%g, loss_ll=%g, loss_ll_paf=%g, loss_ll_heat=%g' % (gs_num / step_per_epoch, gs_num, batch_per_sec * args.batchsize, lr_val, train_loss, train_loss_ll, train_loss_ll_paf, train_loss_ll_heat))
+                logger.info('epoch=%.2f step=%d, %0.4f examples/sec lr=%f, loss=%g, loss_ll=%g, loss_ll_paf=%g, loss_ll_heat=%g' % (gs_num / step_per_epoch, gs_num, ex_per_sec, lr_val, train_loss, train_loss_ll, train_loss_ll_paf, train_loss_ll_heat))
                 last_gs_num = gs_num
 
                 file_writer.add_summary(summary, gs_num)
