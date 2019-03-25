@@ -210,9 +210,8 @@ if __name__ == '__main__':
 
         if args.checkpoint and os.path.isdir(args.checkpoint):
             logger.info('Restore from checkpoint...')
-            # loader = tf.train.Saver(net.restorable_variables())
-            # loader.restore(sess, tf.train.latest_checkpoint(args.checkpoint))
-            saver.restore(sess, args.checkpoint)
+            loader = tf.train.Saver()
+            loader.restore(sess, tf.train.latest_checkpoint(args.checkpoint))
             logger.info('Restore from checkpoint...Done')
         elif pretrain_path:
             logger.info('Restore pretrained weights... %s' % pretrain_path)
@@ -220,7 +219,7 @@ if __name__ == '__main__':
                 net.load(pretrain_path, sess, False)
             else:
                 try:
-                    loader = tf.train.Saver(net.restorable_variables(only_backbone=False))
+                    loader = tf.train.Saver()
                     loader.restore(sess, pretrain_path)
                 except:
                     logger.info('Restore only weights in backbone layers.')
