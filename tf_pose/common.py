@@ -39,8 +39,9 @@ def read_imgfile(path, width=None, height=None):
 def get_sample_images(w, h):
     import os
     val_image = []
-    for fname in os.listdir("./images"):
-        val_image += [read_imgfile(os.path.join("./images", fname), w, h)]
+    images_dir_path = os.path.dirname(os.path.realpath(__file__)) + "/../images"
+    for fname in os.listdir(images_dir_path):
+        val_image += [read_imgfile(os.path.join(images_dir_path, fname), w, h)]
     return val_image
 
 

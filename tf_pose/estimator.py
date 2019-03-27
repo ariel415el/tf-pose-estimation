@@ -302,7 +302,7 @@ class PoseEstimator:
 class TfPoseEstimator:
     # TODO : multi-scale
 
-    def __init__(self, graph_path, input_name, output_name, target_size=(320, 240), tf_config=None, numHeatMaps=len(common.BC_pairs)):
+    def __init__(self, graph_path, input_name, output_name, target_size=(320, 240), tf_config=None, numHeatMaps=len(common.BC_parts)):
         self.target_size = target_size
 
         # load graph

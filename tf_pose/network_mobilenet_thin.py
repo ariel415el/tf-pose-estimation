@@ -7,7 +7,7 @@ import tf_pose.common
 
 
 class MobilenetNetworkThin(network_base.BaseNetwork):
-    def __init__(self, inputs, trainable=True, conv_width=1.0, conv_width2=None, numHeatMaps=15, numPafMaps=26):
+    def __init__(self, inputs, trainable=True, conv_width=1.0, conv_width2=None, numHeatMaps=len(tf_pose.common.BC_parts), numPafMaps=2*len(tf_pose.common.BC_pairs)):
         self.conv_width = conv_width
         self.conv_width2 = conv_width2 if conv_width2 else conv_width
         self.numHeatMaps = numHeatMaps

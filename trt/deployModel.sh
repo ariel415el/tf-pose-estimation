@@ -30,20 +30,20 @@ echo ++++++ Load checkpoint input +++++++++
 echo ++++++++++++++++++++++++++++++++++++++
 
 python3 "${TF_DIR}"/run_checkpoint.py --model "${MODEL_TYPE}" --ckp "${NEW_DIR}/${MODEL}" --name "${MODEL}"-def --resize "${WIDTH}"x"${HEIGHT}"
-exit 0 
 
 echo ++++++++++++++++++++++++++++++++++++++
 echo +++++++++ Freeze model +++++++++++++++
 echo ++++++++++++++++++++++++++++++++++++++
 #  --input_checkpoint="${NEW_DIR}/${MODEL}" \
 #  --input_meta_graph="${NEW_DIR}/${MODEL}".meta \
-#  --input_checkpoint="${NEW_DIR}/${MODEL}" \
+#  --input_checkpoint="${NEW_DIR}"/generated_checkpoint-1 \
 python3 -m tensorflow.python.tools.freeze_graph \
   --input_graph="${NEW_DIR}/${MODEL}"-def.pb \
   --output_graph="${NEW_DIR}/${MODEL}"_frozen.pb \
-  --input_checkpoint="${NEW_DIR}"/generated_checkpoint-1 \
+  --input_checkpoint="${NEW_DIR}/${MODEL}" \
   --output_node_names="Openpose/concat_stage7"
 #python3  "${TF_DIR}"/trt/freeze_ariel.py "${NEW_DIR}/${MODEL}"
+exit 0 
 echo ++++++++++++++++++++++++++++++++++++++
 echo ++++++++++ Optimize model  +++++++++++
 echo ++++++++++++++++++++++++++++++++++++++
