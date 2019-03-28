@@ -10,12 +10,16 @@ from tf_pose.network_mobilenet_v2 import Mobilenetv2Network
 
 
 def _get_base_path():
-    if not os.environ.get('OPENPOSE_MODEL', ''):
-        return './models'
-    return os.environ.get('OPENPOSE_MODEL')
+    models_dir_path = os.path.dirname(os.path.realpath(__file__)) + "/../models"
+    if not os.path.exists(models_dir_path):
+            images_dir_path = "./models"
+    return models_dir_path
+    # if not os.environ.get('OPENPOSE_MODEL', ''):
+    #     return './models'
+    # return os.environ.get('OPENPOSE_MODEL')
 
 
-def get_network(type, placeholder_input, sess_for_load=None, trainable=True, numHeatMaps=15, numPafMaps=26, ckp=None):
+def get_network(type, placeholder_input, sess_for_load=None, trainable=True, numHeatMaps=15, numPafMaps=26):
     if type == 'mobilenet':
         net = MobilenetNetwork({'image': placeholder_input}, conv_width=0.75, conv_width2=1.00, trainable=trainable)
         pretrain_path = 'pretrained/mobilenet_v1_0.75_224_2017_06_14/mobilenet_v1_0.75_224.ckpt'
@@ -95,33 +99,6 @@ def get_network(type, placeholder_input, sess_for_load=None, trainable=True, num
         raise Exception('Invalid Model Name.')
 
     pretrain_path_full = os.path.join(_get_base_path(), pretrain_path)
-    if sess_for_load is not None:
-        if type in ['cmu', 'vgg', 'openpose']:
-            if not os.path.isfile(pretrain_path_full):
-                raise Exception('Model file doesn\'t exist, path=%s' % pretrain_path_full)
-            net.load(os.path.join(_get_base_path(), pretrain_path), sess_for_load)
-        else:
-            try:
-                s = '%dx%d' % (placeholder_input.shape[2], placeholder_input.shape[1])
-            except:
-                s = ''
-            ckpts = {
-                'mobilenet': 'trained/mobilenet_%s/model-246038' % s,
-                'mobilenet_thin': 'trained/mobilenet_thin_%s/model-449003' % s,
-                'mobilenet_fast': 'trained/mobilenet_fast_%s/model-189000' % s,
-                'mobilenet_accurate': 'trained/mobilenet_accurate/model-170000',
-                'mobilenet_v2_w1.4_r0.5': 'trained/mobilenet_v2_w1.4_r0.5/model_latest-380401',
-                'mobilenet_v2_large': 'trained/mobilenet_v2_w1.4_r1.0/model-570000',
-                'mobilenet_v2_small': 'trained/mobilenet_v2_w0.5_r0.5/model_latest-380401',
-            }
-                 
-            ckpt_path = ckp if ckp is not None else os.path.join(_get_base_path(),ckpts[type])
-            #ckpt_path = os.path.join(_get_base_path(), ckp)
-            loader = tf.train.Saver()
-            try:
-                loader.restore(sess_for_load, ckpt_path)
-            except Exception as e:
-                raise Exception('Fail to load model files. \npath=%s\nerr=%s' % (ckpt_path, str(e)))
 
     return net, pretrain_path_full, last_layer
 

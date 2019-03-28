@@ -11,11 +11,11 @@ import numpy as np
 import tensorflow as tf
 from tqdm import tqdm
 
-from pose_dataset import get_dataflow_batch, DataFlowToQueue, CocoToolPoseDataReader
-from pose_augment import set_network_input_wh, set_network_scale
-from common import get_sample_images
-import common
-from networks import get_network
+from tf_pose.pose_dataset import get_dataflow_batch, DataFlowToQueue, CocoToolPoseDataReader
+from tf_pose.pose_augment import set_network_input_wh, set_network_scale
+from tf_pose.common import get_sample_images
+import tf_pose.common as common
+from tf_pose.networks import get_network
 
 logger = logging.getLogger('train')
 logger.handlers.clear()
@@ -106,9 +106,7 @@ if __name__ == '__main__':
         with tf.device(tf.DeviceSpec(device_type="GPU", device_index=gpu_id)):
             with tf.variable_scope(tf.get_variable_scope(), reuse=(gpu_id > 0)):
                 print("### Network input size:  ",q_inp_split[gpu_id].shape)
-                net, pretrain_path, last_layer = get_network(args.model, q_inp_split[gpu_id], numHeatMaps=num_heatmaps, numPafMaps=num_pafmaps)
-                if args.checkpoint:
-                    pretrain_path = args.checkpoint
+                net, pretrained_backbone, last_layer = get_network(args.model, q_inp_split[gpu_id], numHeatMaps=num_heatmaps, numPafMaps=num_pafmaps)
                 vect, heat = net.loss_last()
                 output_vectmap.append(vect)
                 output_heatmap.append(heat)
@@ -208,24 +206,24 @@ if __name__ == '__main__':
         logger.info('model weights initialization')
         sess.run(tf.global_variables_initializer())
 
-        if args.checkpoint and os.path.isdir(args.checkpoint):
-            logger.info('Restore from checkpoint...')
-            loader = tf.train.Saver()
-            loader.restore(sess, tf.train.latest_checkpoint(args.checkpoint))
-            logger.info('Restore from checkpoint...Done')
-        elif pretrain_path:
-            logger.info('Restore pretrained weights... %s' % pretrain_path)
-            if '.npy' in pretrain_path:
-                net.load(pretrain_path, sess, False)
+        if args.checkpoint :
+            if os.path.isdir(args.checkpoint):
+                logger.info('Restore from -latest- checkpoint...')
+                ckp_path = tf.train.latest_checkpoint(args.checkpoint)
             else:
-                try:
-                    loader = tf.train.Saver()
-                    loader.restore(sess, pretrain_path)
-                except:
-                    logger.info('Restore only weights in backbone layers.')
-                    loader = tf.train.Saver(net.restorable_variables())
-                    loader.restore(sess, pretrain_path)
-            logger.info('Restore pretrained weights...Done')
+                logger.info('Restore from checkpoint...')
+                ckp_path = args.checkpoint
+            loader = tf.train.Saver()
+            loader.restore(sess, ckp_path)
+            logger.info('Restore ...Done')
+        elif pretrained_backbone:
+            logger.info('Restore from pretrained weights... %s' % pretrained_backbone)
+            if '.npy' in pretrained_backbone:
+                net.load(pretrained_backbone, sess, False)
+            else:
+                loader = tf.train.Saver(net.restorable_variables())
+                loader.restore(sess, pretrained_backbone)
+            logger.info('Restore ...Done')
 
         logger.info('prepare file writer')
         file_writer = tf.summary.FileWriter(os.path.join(args.modelpath, training_name), sess.graph)
@@ -237,7 +235,7 @@ if __name__ == '__main__':
         time_started = time.time()
         last_gs_num = last_gs_num2 = 0
         initial_gs_num = sess.run(global_step)
-    
+
         while True:
             if args.virtual_batch  < 2:
                 _, gs_num = sess.run([train_op, global_step])
@@ -247,7 +245,6 @@ if __name__ == '__main__':
                     sess.run(accum_ops)
                 sess.run([train_step, inc_gs_num])
                 gs_num = global_step.eval();
-                #rint("### done aggregating %d gradients. now back propping. gs_num=%d"%(args.virtual_batch, gs_num))
             if (gs_num > step_per_epoch * args.max_epoch) or (gs_num > args.max_iter):
                 break
 
@@ -294,19 +291,19 @@ if __name__ == '__main__':
                 outputMaps = []
                 # assumes more test images than batch size
                 for i in range(len(test_images) // args.batchsize) :
-                     idx = i*args.batchsize
-                     chunk = test_images[idx:idx+args.batchsize]
-                     outputMat = sess.run(
-                         outputs,
-                         feed_dict={q_inp: np.array(chunk)}
-                     )
-                     outputMaps += [outputMat]
+                    idx = i*args.batchsize
+                    chunk = test_images[idx:idx+args.batchsize]
+                    outputMat = sess.run(
+                        outputs,
+                        feed_dict={q_inp: np.array(chunk)}
+                    )
+                    outputMaps += [outputMat]
                 outputMat = np.concatenate(outputMaps, axis=0)
-                   
+
                 pafMat, heatMat = outputMat[:, :, :, num_heatmaps:], outputMat[:, :, :, :num_heatmaps]
 
                 test_results = []
-                
+
                 for i in range(num_debug_images):
                     test_result = CocoToolPoseDataReader.display_image(test_images[i], heatMat[i], pafMat[i], as_numpy=True)
                     test_result = cv2.resize(test_result, (640, 640))

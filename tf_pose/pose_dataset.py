@@ -30,7 +30,7 @@ from tensorpack.dataflow.base import RNGDataFlow, DataFlowTerminated
 from tf_pose.pycocotools.coco import COCO
 from tf_pose.pose_augment import pose_flip, pose_rotation, pose_to_img, pose_crop_random, \
     pose_resize_shortestedge_random, pose_resize_shortestedge_fixed, pose_crop_center, pose_random_scale
-import tf_pose.common
+import tf_pose.common as common
 from numba import jit
 
 logging.getLogger("requests").setLevel(logging.WARNING)
