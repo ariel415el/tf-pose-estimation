@@ -4,7 +4,7 @@ import random
 import cv2
 import numpy as np
 from tensorpack.dataflow.imgaug.geometry import RotationAndCropValid
-import common
+import tf_pose.common
 
 _network_w = 368
 _network_h = 368
