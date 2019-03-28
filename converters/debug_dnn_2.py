@@ -11,57 +11,24 @@ import cv2
 from tf_pose.pose_augment import *
 from tf_pose.common import *
 from tf_pose.pose_dataset import  CocoToolPoseDataReader
+import onnx
+from onnx import numpy_helper
+import matplotlib
+matplotlib.use('Agg')
 
-# def pose_resize_shortestedge(image, target_size):
-#     # adjust image
-#     scale = target_size / min(image.height, image.width)
-#     if meta.height < meta.width:
-#         newh, neww = target_size, int(scale * meta.width + 0.5)
-#     else:
-#         newh, neww = int(scale * meta.height + 0.5), target_size
-#
-#     dst = cv2.resize(img, (neww, newh), interpolation=cv2.INTER_AREA)
-#
-#     pw = ph = 0
-#     if neww < _network_w or newh < _network_h:
-#         pw = max(0, (_network_w - neww) // 2)
-#         ph = max(0, (_network_h - newh) // 2)
-#         mw = (_network_w - neww) % 2
-#         mh = (_network_h - newh) % 2
-#         color = random.randint(0, 255)
-#         dst = cv2.copyMakeBorder(dst, ph, ph+mh, pw, pw+mw, cv2.BORDER_CONSTANT, value=(color, 0, 0))
-#
-#     # adjust meta data
-#     adjust_skeletons = []
-#     for joint in meta.skeletons:
-#         adjust_joint = []
-#         for point in joint:
-#             if point[0] < -100 or point[1] < -100:
-#                 adjust_joint.append((-1000, -1000))
-#                 continue
-#             # if point[0] <= 0 or point[1] <= 0 or int(point[0]*scale+0.5) > neww or int(point[1]*scale+0.5) > newh:
-#             #     adjust_joint.append((-1, -1))
-#             #     continue
-#             adjust_joint.append((int(point[0]*scale+0.5) + pw, int(point[1]*scale+0.5) + ph))
-#         adjust_skeletons.append(adjust_joint)
-#
-#     meta.skeletons = adjust_skeletons
-#     meta.width, meta.height = neww + pw * 2, newh + ph * 2
-#     meta.img = dst
-#     return meta
-#
-#
-# def get_image(path):
-#     img_str = open(path, 'rb').read()
-#     nparr = np.fromstring(img_str, np.uint8)
-#     image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-#
-#     ratio_w = 432 / image.width
-#     ratio_h = 368 / image.height
-#     ratio = max(ratio_w, ratio_h)
-#     return pose_resize_shortestedge(image, int(min(image.width * ratio + 0.5, image.height * ratio + 0.5)))
+def get_onnx_dict(onnx_path, layer_name=None):
+    data_dict = {}
+    model = onnx.load(onnx_path)
+    layers = model.graph.initializer
+    for layer in layers:
+        if layer_name in layer.name:
+            print("Onnx lyaer: ", layer.name)
+            w = numpy_helper.to_array(layer)
+            data_dict[layer.name.split(":")[0]] = w,"NA"
+    return data_dict
 
-def extract_heat_maps_from_ckp(ckp,image_path):
+
+def extract_heat_maps_from_ckp(ckp,image_path, trainable=False):
     test_images = get_sample_images(432, 368)[:1]
     with tf.device(tf.DeviceSpec(device_type="CPU")):
         input_node = tf.placeholder(tf.float32, shape=(len(test_images), 368, 432, 3), name='image')
@@ -69,7 +36,7 @@ def extract_heat_maps_from_ckp(ckp,image_path):
     outputs = []
     with tf.device(tf.DeviceSpec(device_type="GPU", device_index=0)):
         with tf.variable_scope(tf.get_variable_scope()):
-            net, pretrain_path, last_layer = get_network("mobilenet_thin", input_node, trainable=TRAINABLE)
+            net, pretrain_path, last_layer = get_network("mobilenet_thin", input_node, trainable=trainable)
             outputs.append(net.get_output())
     outputs = tf.concat(outputs, axis=0)
 
@@ -135,14 +102,14 @@ def extract_heat_maps_from_pb(pb_file, image_path):
                     test_result = cv2.resize(test_result, (640, 640))
                     test_result = test_result.reshape([640, 640, 3]).astype(float)
                     # cv2.imwrite(os.path.join(args.out_path,"all_hm_%d.png"%i),heatMat[i][-1])
-                    cv2.imwrite(os.path.join(os.path.dirname(ckp), "pb_test_%d.png" % i), test_result)
+                    cv2.imwrite(os.path.join(os.path.dirname(pb_file), "pb_test_%d.png" % i), test_result)
                 return
 
-def save_pb_file(ckp, path,do_transforms=False):
+def save_pb_file(ckp, path,trainable=False,do_transforms=False):
     with tf.Graph().as_default() as graph:
         input_node = tf.placeholder(tf.float32, shape=(1, 368, 432, 3), name='image')
         with tf.device(tf.DeviceSpec(device_type="GPU")):
-            net, pretrain_path, last_layer = get_network("mobilenet_thin", input_node, None, trainable=TRAINABLE)
+            net, pretrain_path, last_layer = get_network("mobilenet_thin", input_node, None, trainable=trainable)
         with tf.Session() as sess:
             variables_to_restore = slim.get_variables_to_restore()
             loader = tf.train.Saver(variables_to_restore)
@@ -150,9 +117,9 @@ def save_pb_file(ckp, path,do_transforms=False):
             graph_def = tf.get_default_graph().as_graph_def()
             if do_transforms:
                 transforms = ['add_default_attributes',
-                              'remove_nodes(op=Identity, op=CheckNumerics)']
-                              # 'strip_unused_nodes', 'sort_by_execution_order']
-                              # 'fold_batch_norms', 'fold_old_batch_norms',
+                              'remove_nodes(op=Identity, op=CheckNumerics)',
+                              'strip_unused_nodes', 'sort_by_execution_order',
+                              'fold_batch_norms', 'fold_old_batch_norms']
                 graph_def = TransformGraph(graph_def, 'image',["Openpose/concat_stage7"], transforms)
 
             graph_def = tf.graph_util.convert_variables_to_constants(
@@ -205,63 +172,68 @@ def get_ops_from_ckp(ckp, layer_name=None):
                         pass
             return name_to_var_and_type
 
+def compare_data_dicts(dict_source, dict_ref):
+    missing_layers = 0
+    transposed_layers = 0
+    different_layers = 0
+    for op_name in dict_source:
+        source_val = dict_source[op_name][0]
+        source_type = dict_source[op_name][1]
 
-if __name__ == '__main__':
+        if op_name not in dict_ref:
+            missing_layers += 1
+            print("Op: %s of type %s is missing from ref model" % (op_name, source_type))
+            continue
+        ref_val = dict_ref[op_name][0]
+        ref_type = dict_ref[op_name][1]
+
+        layers_same = np.sum(ref_val == source_val) == source_val.size
+        layers_transposed = np.sum(ref_val == source_val.transpose()) == source_val.size
+
+        if layers_same:
+            print("Op OK: ", op_name)
+        elif layers_transposed:
+            transposed_layers+=1
+            print("Op transposed: ", op_name)
+        else:
+            print("Op: different", op_name)
+            print("\tRef type", ref_type, end=", ")
+            print("\tSource type", source_type, end=", ")
+            print("\tShapes: ", source_val.shape,ref_val.shape)
+            print("\tDiff: source has %d/%d of pb_dict_ref"%(np.sum(source_val == ref_val), source_val.size))
+            different_layers += 1
+
+    print("missing_layers: ", missing_layers)
+    print("different_layers: ", different_layers)
+    print("transposedlayers: ", transposed_layers)
+
+
+
+def main():
     TRAINABLE=True
     OPTIMIZE=False
-    layer_name = "Openpose/MConv_Stage1_L1_1"
     ckp = sys.argv[1]
+    pb_out_path = os.path.join(os.path.dirname(ckp), "debug_freeze_ariel.pb")
     script_model_path = "/home/CoreNew/PoseEestimation/DataGeneration/coco_full/training/bc_format/mobilenet_thin_batch_16_lr_0.01_432x368_gpu5_bc_format_/model-91000/model-91000/model-91000_frozen.pb"
-    saved_model_path = os.path.join(os.path.dirname(ckp), "debug_freeze_ariel.pb")
-    # ref_model_path = "/home/briefcam/Projects/ArielE/tf-pose-git/models/graph/mobilenet_thin/graph_freeze.pb"
     image_path = "/home/briefcam/Projects/ArielE/tf-pose-git/images/vilage.jpg"
-    opt_model= "/home/CoreNew/PoseEestimation/DataGeneration/coco_full/training/bc_format/mobilenet_thin_batch_16_lr_0.01_432x368_gpu5_bc_format_/model-91000/debug_freeze_ariel_opt.pb"
+    # ref_model_path = "/home/briefcam/Projects/ArielE/tf-pose-git/models/graph/mobilenet_thin/graph_opt_constant.pb"
+    onnx_model_path = '/home/CoreNew/PoseEestimation/DataGeneration/coco_full/training/bc_format/mobilenet_thin_batch_16_lr_0.01_432x368_gpu5_bc_format_/model-91000/debug_freeze_ariel_nchw.onnx'
+    layer_name = "Openpose/MConv_Stage"
+    onnx_dict =  get_onnx_dict(onnx_model_path, layer_name)
 
-    save_pb_file(ckp, saved_model_path, do_transforms=OPTIMIZE)
-    # extract_heat_maps_from_ckp(ckp, image_path)
-    extract_heat_maps_from_pb(saved_model_path, image_path)
-    # extract_heat_maps_from_pb(opt_model, image_path)
-
+    save_pb_file(ckp, pb_out_path, trainable=TRAINABLE, do_transforms=OPTIMIZE)
     exit()
+    # # extract_heat_maps_from_ckp(ckp, image_path)
+    # extract_heat_maps_from_pb(saved_model_path, image_path)
+    extract_heat_maps_from_pb(pb_out_path, image_path)
 
-    ckp_dict = get_ops_from_ckp(ckp,layer_name)
-    script_dict = get_ops_from_pb(script_model_path,layer_name)
-    saved_dict = get_ops_from_pb(saved_model_path,layer_name)
+    # ckp_dict = get_ops_from_ckp(ckp, layer_name)
+    # script_dict = get_ops_from_pb(script_model_path,layer_name)
+    saved_dict = get_ops_from_pb(pb_out_path,layer_name)
     # ref_dict = get_ops_from_pb(ref_model_path,layer_name)
+    print("Comparing")
+    compare_data_dicts(onnx_dict, saved_dict)
+    print("Done")
 
-    missing_layers = 0
-    for script_name in script_dict:
-        script_val = script_dict[script_name][0]
-        script_type = script_dict[script_name][1]
-        if script_name not in ckp_dict:
-            missing_layers += 1
-            print("Op %s of type %s is missing from freezed model"%(script_name, script_type))
-
-        # ref_val = ref_dict[script_name][0]
-        # ref_type = ref_dict[script_name][1]
-
-        ckp_val = ckp_dict[script_name][0]
-        ckp_type = ckp_dict[script_name][1]
-
-        saved_val = saved_dict[script_name][0]
-        saved_type = saved_dict[script_name][1]
-        if (np.sum(script_val == saved_val) != saved_val.size) or (np.sum(script_val == ckp_val) != saved_val.size):
-            print("Op:script_name")
-            print("\tckp type", ckp_type, end=", ")
-            print("\tsaved type", saved_type,end=", ")
-            print("\tscript type", script_type)
-            print("\tShapes: ", script_val.shape)
-            print("\tmean diff: script saved %d/%d"%(np.sum(script_val == saved_val), saved_val.size))
-            print("\tmean diff: : script ckp %d/%d"%(np.sum(script_val == ckp_val), ckp_val.size))
-            print("\tmean diff: : saved ckp %d/%d" % (np.sum(saved_val == ckp_val), ckp_val.size))
-        # print("\tmean diff: : ref ckp %d/%d"%(np.sum(ref_val == ckp_val), ref_val.size))
-
-        # if (np.sum(script_val == ckp_val) /  float(script_val.size) )< 1.0:
-        #     print("Op: %s"%script_name)
-        #     print("\tmean diff: : script ckp %d/%d"%(np.sum(script_val == ckp_val), script_val.size))
-        # print("mean diff: : script saved", np.mean(script_val - saved_val))
-        # print("mean diff: : ref saved", np.mean(ref_val - saved_val))
-        # print("mean diff: : saved ckp", np.mean(saved_val - ckp_val))
-    print("missing_layers ", missing_layers)
-
-
+if __name__ == '__main__':
+    main()

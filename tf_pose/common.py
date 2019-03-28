@@ -40,6 +40,8 @@ def get_sample_images(w, h):
     import os
     val_image = []
     images_dir_path = os.path.dirname(os.path.realpath(__file__)) + "/../images"
+    if not os.path.exists(images_dir_path):
+            images_dir_path = "./images"   
     for fname in os.listdir(images_dir_path):
         val_image += [read_imgfile(os.path.join(images_dir_path, fname), w, h)]
     return val_image

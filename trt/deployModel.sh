@@ -43,7 +43,7 @@ python3 -m tensorflow.python.tools.freeze_graph \
   --input_checkpoint="${NEW_DIR}/${MODEL}" \
   --output_node_names="Openpose/concat_stage7"
 #python3  "${TF_DIR}"/trt/freeze_ariel.py "${NEW_DIR}/${MODEL}"
-exit 0 
+
 echo ++++++++++++++++++++++++++++++++++++++
 echo ++++++++++ Optimize model  +++++++++++
 echo ++++++++++++++++++++++++++++++++++++++
