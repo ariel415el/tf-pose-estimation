@@ -107,7 +107,7 @@ def extract_heat_maps_from_pb(pb_file, image_path):
 
 def save_pb_file(ckp, path,trainable=False,do_transforms=False):
     with tf.Graph().as_default() as graph:
-        input_node = tf.placeholder(tf.float32, shape=(1, 368, 432, 3), name='image')
+        input_node = tf.placeholder(tf.float32, shape=(None, 368, 432, 3), name='image')
         with tf.device(tf.DeviceSpec(device_type="GPU")):
             net, pretrain_path, last_layer = get_network("mobilenet_thin", input_node, None, trainable=trainable)
         with tf.Session() as sess:
@@ -176,6 +176,7 @@ def compare_data_dicts(dict_source, dict_ref):
     missing_layers = 0
     transposed_layers = 0
     different_layers = 0
+    missed_layers = []
     for op_name in dict_source:
         source_val = dict_source[op_name][0]
         source_type = dict_source[op_name][1]
@@ -183,6 +184,7 @@ def compare_data_dicts(dict_source, dict_ref):
         if op_name not in dict_ref:
             missing_layers += 1
             print("Op: %s of type %s is missing from ref model" % (op_name, source_type))
+            missed_layers += [op_name]
             continue
         ref_val = dict_ref[op_name][0]
         ref_type = dict_ref[op_name][1]
@@ -197,9 +199,9 @@ def compare_data_dicts(dict_source, dict_ref):
             print("Op transposed: ", op_name)
         else:
             print("Op: different", op_name)
-            print("\tRef type", ref_type, end=", ")
-            print("\tSource type", source_type, end=", ")
-            print("\tShapes: ", source_val.shape,ref_val.shape)
+            print("\tRef type "+ref_type)
+            print("\tSource type "+ source_type)
+            print("\tShapes: " + source_val.shape,ref_val.shape)
             print("\tDiff: source has %d/%d of pb_dict_ref"%(np.sum(source_val == ref_val), source_val.size))
             different_layers += 1
 
@@ -207,25 +209,27 @@ def compare_data_dicts(dict_source, dict_ref):
     print("different_layers: ", different_layers)
     print("transposedlayers: ", transposed_layers)
 
+def create_onnx_from_pb(pb_path, onnx_path):
+    os.system(" python3 -m tf2onnx.convert --input %s --inputs image:0 --outputs Openpose/concat_stage7:0 --verbose --output  %s"%(pb_path, onnx_path))
 
 
 def main():
     TRAINABLE=True
     OPTIMIZE=False
     ckp = sys.argv[1]
-    pb_out_path = os.path.join(os.path.dirname(ckp), "debug_freeze_ariel.pb")
-    script_model_path = "/home/CoreNew/PoseEestimation/DataGeneration/coco_full/training/bc_format/mobilenet_thin_batch_16_lr_0.01_432x368_gpu5_bc_format_/model-91000/model-91000/model-91000_frozen.pb"
+    pb_out_path = os.path.join(os.path.dirname(ckp), "freeze_ariel.pb")
     image_path = "/home/briefcam/Projects/ArielE/tf-pose-git/images/vilage.jpg"
     # ref_model_path = "/home/briefcam/Projects/ArielE/tf-pose-git/models/graph/mobilenet_thin/graph_opt_constant.pb"
-    onnx_model_path = '/home/CoreNew/PoseEestimation/DataGeneration/coco_full/training/bc_format/mobilenet_thin_batch_16_lr_0.01_432x368_gpu5_bc_format_/model-91000/debug_freeze_ariel_nchw.onnx'
-    layer_name = "Openpose/MConv_Stage"
-    onnx_dict =  get_onnx_dict(onnx_model_path, layer_name)
+    onnx_model_path = os.path.join(os.path.dirname(ckp), "freeze_ariel.onnx")
+    layer_name = "Openpose/MConv_Stage1_L1_1"
 
     save_pb_file(ckp, pb_out_path, trainable=TRAINABLE, do_transforms=OPTIMIZE)
-    exit()
-    # # extract_heat_maps_from_ckp(ckp, image_path)
-    # extract_heat_maps_from_pb(saved_model_path, image_path)
+    create_onnx_from_pb(pb_out_path, onnx_model_path)
+
     extract_heat_maps_from_pb(pb_out_path, image_path)
+    exit()
+    onnx_dict = get_onnx_dict(onnx_model_path, layer_name)
+    # # extract_heat_maps_from_ckp(ckp, image_path)
 
     # ckp_dict = get_ops_from_ckp(ckp, layer_name)
     # script_dict = get_ops_from_pb(script_model_path,layer_name)

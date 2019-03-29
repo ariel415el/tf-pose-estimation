@@ -6,7 +6,7 @@ import cv2
 
 regularizer_conv = 0.004
 regularizer_dsconv = 0.0004
-batchnorm_fused = False
+batchnorm_fused = True
 activation_fn = tf.nn.relu
 
 class BC_parts(Enum):
