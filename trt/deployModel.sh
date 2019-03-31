@@ -29,18 +29,18 @@ echo ++++++++++++++++++++++++++++++++++++++
 echo ++++++ Load checkpoint input +++++++++
 echo ++++++++++++++++++++++++++++++++++++++
 
-python3 "${TF_DIR}"/run_checkpoint.py --model "${MODEL_TYPE}" --ckp "${NEW_DIR}/${MODEL}" --name "${MODEL}"-def --resize "${WIDTH}"x"${HEIGHT}"
+python3 "${TF_DIR}"/run_checkpoint.py --model "${MODEL_TYPE}" --ckp "${NEW_DIR}/${MODEL}" --name "${MODEL}"-def --resize "${WIDTH}"x"${HEIGHT}" --trainable 
 
 echo ++++++++++++++++++++++++++++++++++++++
 echo +++++++++ Freeze model +++++++++++++++
 echo ++++++++++++++++++++++++++++++++++++++
 #  --input_checkpoint="${NEW_DIR}/${MODEL}" \
 #  --input_meta_graph="${NEW_DIR}/${MODEL}".meta \
-#  --input_checkpoint="${NEW_DIR}"/generated_checkpoint-1 \
+#  --input_checkpoint="${NEW_DIR}/${MODEL}" \
 python3 -m tensorflow.python.tools.freeze_graph \
   --input_graph="${NEW_DIR}/${MODEL}"-def.pb \
   --output_graph="${NEW_DIR}/${MODEL}"_frozen.pb \
-  --input_checkpoint="${NEW_DIR}/${MODEL}" \
+  --input_checkpoint="${NEW_DIR}"/generated_checkpoint-1 \
   --output_node_names="Openpose/concat_stage7"
 #python3  "${TF_DIR}"/trt/freeze_ariel.py "${NEW_DIR}/${MODEL}"
 
@@ -54,12 +54,11 @@ python3 -m tensorflow.python.tools.optimize_for_inference \
     --input_names=image \
     --output_names='Openpose/concat_stage7' \
     --transforms='
-     strip_unused_nodes(type=float, shape="1,368,368,3")
+     strip_unused_nodes(type=float, shape="1,368,432,3")
      remove_nodes(op=Identity, op=CheckNumerics)
      fold_constants(ignoreError=False)
      fold_old_batch_norms
      fold_batch_norms'
-
 echo ++++++++++++++++++++++++++++++++++++++
 echo ++++++ Make constant input  ++++++++++
 echo ++++++++++++++++++++++++++++++++++++++
@@ -70,7 +69,7 @@ echo ++++++++++++++++++++++++++++++++++++++
 echo ++++++++++ Test model  +++++++++++++++
 echo ++++++++++++++++++++++++++++++++++++++
 
-python3 "${TF_DIR}"/ariel_run.py --images "${TF_DIR}"/images --model "${NEW_DIR}/"${MODEL}_frozen"${OPT}"_constant.pb  --resize "${HEIGHT}"x"${WIDTH}" --in_name const_input:0 --out_name ariel_openpose/Openpose/concat_stage7:0
+python3 "${TF_DIR}"/ariel_run.py --images "${TF_DIR}"/images --model "${NEW_DIR}/"${MODEL}_frozen"${OPT}"_constant.pb  --resize "${HEIGHT}"x"${WIDTH}" --in_name image:0 --out_name Openpose/concat_stage7:0
 mv "${TF_DIR}"/tf-openpose_"${MODEL}"_frozen"${OPT}"_constant_"${HEIGHT}"x"${WIDTH}".json "${NEW_DIR}"/tf-openpose_"${MODEL}"_frozen"${OPT}"_constant_"${HEIGHT}"x"${WIDTH}".json
 python3 "${TF_DIR}"/vis/create_debug_images.py  "${TF_DIR}"/images "${NEW_DIR}"/tf-openpose_"${MODEL}"_frozen"${OPT}"_constant_"${HEIGHT}"x"${WIDTH}".json
 mv  "${TF_DIR}"/images_out_"${MODEL}"_frozen"${OPT}"_constant_"${HEIGHT}"x"${WIDTH}" "${NEW_DIR}"
@@ -81,7 +80,7 @@ echo ++++++++++ Convert to onnx +++++++++++
 echo ++++++++++++++++++++++++++++++++++++++
 
 ################## convert to onnx #################
-python3 -m tf2onnx.convert --input "${NEW_DIR}/${MODEL}"_frozen"${OPT}"_constant.pb --inputs const_input:0 --outputs ariel_openpose/Openpose/concat_stage7:0 --verbose --output "${NEW_DIR}/${MODEL}"_frozen"${OPT}"_constant.onnx
+python3 -m tf2onnx.convert --input "${NEW_DIR}/${MODEL}"_frozen"${OPT}"_constant.pb --inputs image:0 --outputs Openpose/concat_stage7:0 --verbose --output "${NEW_DIR}/${MODEL}"_frozen"${OPT}"_constant.onnx
 
 
 

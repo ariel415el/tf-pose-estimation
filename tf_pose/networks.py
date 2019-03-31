@@ -12,7 +12,7 @@ from tf_pose.network_mobilenet_v2 import Mobilenetv2Network
 def _get_base_path():
     models_dir_path = os.path.dirname(os.path.realpath(__file__)) + "/../models"
     if not os.path.exists(models_dir_path):
-            images_dir_path = "./models"
+            models_dir_path = "./models"
     return models_dir_path
     # if not os.environ.get('OPENPOSE_MODEL', ''):
     #     return './models'
