@@ -29,7 +29,8 @@ def get_onnx_dict(onnx_path, layer_name=None):
 
 
 def extract_heat_maps_from_ckp(ckp,image_path, trainable=False):
-    test_images = get_sample_images(432, 368)[:1]
+    # test_images = get_sample_images(432, 368)[:1]
+    test_images = [read_imgfile(image_path,432, 368)]
     with tf.device(tf.DeviceSpec(device_type="CPU")):
         input_node = tf.placeholder(tf.float32, shape=(len(test_images), 368, 432, 3), name='image')
 
@@ -55,7 +56,8 @@ def extract_heat_maps_from_ckp(ckp,image_path, trainable=False):
             cv2.imwrite(os.path.join(os.path.dirname(ckp),"ckp_test_%d.png"%i), test_result)
 
 def extract_heat_maps_from_pb(pb_file, image_path):
-    test_images = get_sample_images(432, 368)[:1]
+    # test_images = get_sample_images(432, 368)[:1]
+    test_images = [read_imgfile(image_path, 432, 368)]
     # with tf.device(tf.DeviceSpec(device_type="CPU")):
     #     input_node = tf.placeholder(tf.float32, shape=(len(test_images), 368, 432, 3), name='my_image')
     with tf.Graph().as_default() as graph:
@@ -190,7 +192,8 @@ def compare_data_dicts(dict_source, dict_ref):
 
 
 def create_onnx_from_pb(pb_path, onnx_path):
-    os.system(" python3 -m tf2onnx.convert --input %s --inputs image:0 --outputs Openpose/concat_stage7:0 --verbose --output  %s"%(pb_path, onnx_path))
+    # os.system(" python3 -m tf2onnx.convert --input %s --inputs image:0 --outputs Openpose/concat_stage7:0 --verbose --output  %s"%(pb_path, onnx_path))
+    os.system(" python3 -m tf2onnx.convert --input %s --inputs image:0 --outputs ace/strided_slice_6:0,ace/strided_slice_7:0 --verbose --output  %s" % (pb_path, onnx_path))
 
 def run_freeze_script(ckp, pb_path):
     graph_def_name=os.path.splitext(os.path.basename(pb_path))[0]
@@ -208,6 +211,7 @@ def main():
     pb_out_path_trainable = os.path.join(os.path.dirname(ckp), "freeze_ariel_trainable.pb")
     # pb_out_path_non_trainable = os.path.join(os.path.dirname(ckp), "freeze_ariel_non_trainable.pb")
     image_path = "/home/briefcam/Projects/ArielE/tf-pose-git/images/vilage.jpg"
+    small_train_image = "/home/CoreNew/PoseEestimation/DataGeneration/coco_small/train/000000004554.jpg"
     ref_opt_path = "/home/briefcam/Projects/ArielE/tf-pose-git/models/graph/mobilenet_thin/graph_opt_constant.pb"
     ref_model_path = "/home/briefcam/Projects/ArielE/tf-pose-git/models/graph/mobilenet_thin/graph_freeze.pb"
     ref_onnx_path = os.path.join(os.path.dirname(ckp), "m_thin_1312x736_opt.onnx")
@@ -216,15 +220,22 @@ def main():
     onnx_model_path = os.path.join(os.path.dirname(ckp), "freeze_ariel.onnx")
     layer_name = "Openpose/MConv_Stage1_L1_1"
 
+    cannon_const_pb = "/home/CoreNew/PoseEestimation/Cannon/PoseEstimation/pose_estimation_and_visualization_modules/freezed_model_constant.pb"
+    create_onnx_from_pb(cannon_const_pb, os.path.splitext(cannon_const_pb)[0] + ".onnx")
+    exit()
 
-    save_pb_file(ckp, pb_out_path, trainable=False, do_transforms=False)
+    extract_heat_maps_from_ckp(ckp, small_train_image, trainable=False)
+    # save_pb_file(ckp, pb_out_path, trainable=True, do_transforms=False)
+    # extract_heat_maps_from_pb(pb_out_path, small_train_image)
+
+    exit()
+
     save_pb_file(ckp, pb_out_path_trainable, trainable=True, do_transforms=False)
     saved_dict = get_ops_from_pb(pb_out_path, layer_name)
     saved_dict_trainable = get_ops_from_pb(pb_out_path_trainable, layer_name)
     compare_data_dicts(saved_dict, saved_dict_trainable)
-    exit()
 
-    # extract_heat_maps_from_ckp(ckp, image_path, trainable=TRAINABLE)
+    #
     # exit()
     # ckp_dict_trainable = get_ops_from_ckp(ckp, layer_name, trainable=True)
     # ckp_dict = get_ops_from_ckp(ckp, layer_name, trainable=False)
