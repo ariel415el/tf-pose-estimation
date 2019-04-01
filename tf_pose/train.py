@@ -141,9 +141,8 @@ if __name__ == '__main__':
         global_step = tf.Variable(0, trainable=False)
         if ',' not in args.lr:
             starter_learning_rate = float(args.lr)
-            # learning_rate = tf.train.exponential_decay(starter_learning_rate, global_step,
-            #                                            decay_steps=10000, decay_rate=0.33, staircase=True)
-            learning_rate = tf.train.cosine_decay(starter_learning_rate, global_step, args.max_epoch * step_per_epoch, alpha=0.0)
+            learning_rate = tf.train.exponential_decay(starter_learning_rate, global_step, decay_steps=args.decay_steps, decay_rate=args.decay_rate, staircase=True)
+            # learning_rate = tf.train.cosine_decay(starter_learning_rate, global_step, args.max_epoch * step_per_epoch, alpha=0.0)
         else:
             lrs = [float(x) for x in args.lr.split(',')]
             boundaries = [step_per_epoch * 5 * i for i, _ in range(len(lrs)) if i > 0]
@@ -159,18 +158,15 @@ if __name__ == '__main__':
     if args.freeze_backbone:        
         vars_to_optimize = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES,'Openpose') 
     print("### Optimizing %d\%d variables"%(len(vars_to_optimize),len(tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES))))
+    update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
     if args.virtual_batch < 2:
-        update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
         with tf.control_dependencies(update_ops):
             train_op = optimizer.minimize(total_loss, global_step, var_list=vars_to_optimize, colocate_gradients_with_ops=True)
     else:
-        update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
-        with tf.control_dependencies(update_ops):
+            combined_op = tf.tuple([virtual_batch_total_loss], control_inputs=update_ops)[0]
             accum_vars = [tf.Variable(tf.zeros_like(tv.initialized_value()), trainable=False) for tv in vars_to_optimize]
             zero_ops = [tv.assign(tf.zeros_like(tv)) for tv in accum_vars]# gradient variable list = [ (gradient,variable) ]
-            gvs = optimizer.compute_gradients(virtual_batch_total_loss, var_list=vars_to_optimize, colocate_gradients_with_ops=True)
-        update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
-        with tf.control_dependencies(update_ops):
+            gvs = optimizer.compute_gradients(combined_op, var_list=vars_to_optimize, colocate_gradients_with_ops=True)
             accum_ops = [accum_vars[i].assign_add(gv[0]) for i, gv in enumerate(gvs)]
             train_step = optimizer.apply_gradients([(accum_vars[i], gv[1]) for i, gv in enumerate(gvs)])
             inc_gs_num = tf.assign(global_step, global_step + 1)
