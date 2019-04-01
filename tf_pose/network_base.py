@@ -180,7 +180,8 @@ class BaseNetwork(object):
 
     @layer
     def separable_conv(self, input, k_h, k_w, c_o, stride, name, relu=True, set_bias=True):
-        with slim.arg_scope([slim.batch_norm], decay=0.999, fused=common.batchnorm_fused, is_training=self.trainable):
+        # updates_collections=None makes it slower but ensures updates happens
+        with slim.arg_scope([slim.batch_norm], decay=0.999, fused=common.batchnorm_fused, is_training=self.trainable, updates_collections=None):
             output = slim.separable_convolution2d(input,
                                                   num_outputs=None,
                                                   stride=stride,
