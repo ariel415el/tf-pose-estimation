@@ -98,9 +98,10 @@ if __name__ == '__main__':
 
     output_vectmap = []
     output_heatmap = []
-    losses = []
-    last_losses_l1 = []
-    last_losses_l2 = []
+    paf_losses = []
+    hm_losess = []
+    last_hm_losses = []
+    last_paf_losses = []
     outputs = []
     for gpu_id in range(args.gpus):
         with tf.device(tf.DeviceSpec(device_type="GPU", device_index=gpu_id)):
@@ -112,48 +113,43 @@ if __name__ == '__main__':
                 output_heatmap.append(heat)
                 outputs.append(net.get_output())
 
-                l1s, l2s = net.loss_l1_l2()
-                for idx, (l1, l2) in enumerate(zip(l1s, l2s)):
-                    loss_l1 = tf.nn.l2_loss(tf.concat(l1, axis=0) - q_vect_split[gpu_id], name='loss_l1_stage%d_tower%d' % (idx, gpu_id))
-                    loss_l2 = tf.nn.l2_loss(tf.concat(l2, axis=0) - q_heat_split[gpu_id], name='loss_l2_stage%d_tower%d' % (idx, gpu_id))
-                    losses.append(tf.reduce_mean([loss_l1, loss_l2]))
-
-                last_losses_l1.append(loss_l1)
-                last_losses_l2.append(loss_l2)
+                paf_maps, heat_maps = net.loss_paf_hm()
+                for idx_paf, paf_map in enumerate(paf_maps):
+                    loss_paf = tf.nn.l2_loss(tf.concat(paf_map, axis=0) - q_vect_split[gpu_id], name='loss_paf_stage%d_tower%d' % (idx_paf, gpu_id))
+                    paf_losses.append(loss_paf)
+                    last_paf_losses.append(loss_paf)
+                for idx_hm, heat_map in enumerate(heat_maps):
+                    loss_hm = tf.nn.l2_loss(tf.concat(heat_map, axis=0) - q_heat_split[gpu_id], name='loss_hm_stage%d_tower%d' % (idx_hm, gpu_id))
+                    hm_losess.append(loss_hm)
+                    last_hm_losses.append(loss_hm)
 
     outputs = tf.concat(outputs, axis=0)
 
     with tf.device(tf.DeviceSpec(device_type="GPU")):
         # define loss
+        total_loss = tf.reduce_mean(paf_losses + hm_losess) / args.batchsize
+        loss_last_paf = tf.reduce_mean(last_paf_losses) / args.batchsize
+        loss_last_hm = tf.reduce_mean(last_hm_losses) / args.batchsize
         real_batch_size = args.batchsize * args.virtual_batch
-        total_loss = tf.reduce_sum(losses) / args.batchsize
-        total_loss_ll_paf = tf.reduce_sum(last_losses_l1) / args.batchsize
-        total_loss_ll_heat = tf.reduce_sum(last_losses_l2) / args.batchsize
-        # total_loss_ll = tf.reduce_mean([total_loss_ll_paf, total_loss_ll_heat])
-        total_loss_ll = tf.reduce_sum([total_loss_ll_paf, total_loss_ll_heat])
-
         virtual_batch_total_loss = total_loss / real_batch_size
+
         # define optimizer
         num_train_images = len(os.listdir(args.train_dir))
         step_per_epoch = num_train_images // real_batch_size
         print("### Real batch size is " , real_batch_size)
         print("### Train images: %d , steps per epoch: %d"%(num_train_images, step_per_epoch))
         global_step = tf.Variable(0, trainable=False)
-        if ',' not in args.lr:
-            starter_learning_rate = float(args.lr)
-            learning_rate = tf.train.exponential_decay(starter_learning_rate, global_step, decay_steps=args.decay_steps, decay_rate=args.decay_rate, staircase=True)
-            # learning_rate = tf.train.cosine_decay(starter_learning_rate, global_step, args.max_epoch * step_per_epoch, alpha=0.0)
-        else:
-            lrs = [float(x) for x in args.lr.split(',')]
-            boundaries = [step_per_epoch * 5 * i for i, _ in range(len(lrs)) if i > 0]
-            learning_rate = tf.train.piecewise_constant(global_step, boundaries, lrs)
+
+        # set learning rate decay
+        starter_learning_rate = float(args.lr)
+        learning_rate = tf.train.exponential_decay(starter_learning_rate, global_step, decay_steps=args.decay_steps, decay_rate=args.decay_rate, staircase=True)
+        # learning_rate = tf.train.cosine_decay(starter_learning_rate, global_step, args.max_epoch * step_per_epoch, alpha=0.0)
 
     if args.quant_delay >= 0:
         logger.info('train using quantized mode, delay=%d' % args.quant_delay)
         g = tf.get_default_graph()
         tf.contrib.quantize.create_training_graph(input_graph=g, quant_delay=args.quant_delay)
     optimizer = tf.train.AdamOptimizer(learning_rate, epsilon=1e-8)
-    # optimizer = tf.train.MomentumOptimizer(learning_rate, momentum=0.8, use_locking=True, use_nesterov=True)
     vars_to_optimize = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)
     if args.freeze_backbone:        
         vars_to_optimize = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES,'Openpose') 
@@ -175,22 +171,21 @@ if __name__ == '__main__':
 
     # define summary
     tf.summary.scalar("loss", total_loss)
-    tf.summary.scalar("loss_lastlayer", total_loss_ll)
-    tf.summary.scalar("loss_lastlayer_paf", total_loss_ll_paf)
-    tf.summary.scalar("loss_lastlayer_heat", total_loss_ll_heat)
+    tf.summary.scalar("loss_last_paf", loss_last_paf)
+    tf.summary.scalar("loss_last_hm", loss_last_hm)
     tf.summary.scalar("queue_size", enqueuer.size())
 
     merged_summary_op = tf.summary.merge_all()
 
     valid_loss = tf.placeholder(tf.float32, shape=[])
-    valid_loss_ll = tf.placeholder(tf.float32, shape=[])
-    valid_loss_ll_paf = tf.placeholder(tf.float32, shape=[])
-    valid_loss_ll_heat = tf.placeholder(tf.float32, shape=[])
+    valid_loss_last_paf = tf.placeholder(tf.float32, shape=[])
+    valid_loss_last_hm = tf.placeholder(tf.float32, shape=[])
     sample_valid = tf.placeholder(tf.float32, shape=(num_debug_images, 640, 640, 3))
     valid_img = tf.summary.image('validation sample', sample_valid, num_debug_images)
-    valid_loss_t = tf.summary.scalar("loss_valid", valid_loss)
-    valid_loss_ll_t = tf.summary.scalar("loss_valid_lastlayer", valid_loss_ll)
-    merged_validate_op = tf.summary.merge([ valid_img, valid_loss_t, valid_loss_ll_t])
+    valid_loss_t = tf.summary.scalar("valid_loss", valid_loss)
+    valid_loss_last_paf_t = tf.summary.scalar("valid_loss_last_paf", valid_loss_last_paf)
+    valid_loss_last_hm_t = tf.summary.scalar("valid_loss_last_hm", valid_loss_last_hm)
+    merged_validate_op = tf.summary.merge([ valid_img, valid_loss_t,valid_loss_last_paf_t, valid_loss_last_hm_t])
 
     saver = tf.train.Saver(max_to_keep=100)
     config = tf.ConfigProto(allow_soft_placement=True, log_device_placement=False)
@@ -247,16 +242,20 @@ if __name__ == '__main__':
                 sess.run([update_ops])
                 sess.run([train_step, inc_gs_num])
                 gs_num = global_step.eval();
+
             if (gs_num > step_per_epoch * args.max_epoch) or (gs_num > args.max_iter):
                 break
 
             if gs_num - last_gs_num >= 100:
-                train_loss, train_loss_ll, train_loss_ll_paf, train_loss_ll_heat, lr_val, summary, queue_size = sess.run([total_loss, total_loss_ll, total_loss_ll_paf, total_loss_ll_heat, learning_rate, merged_summary_op, enqueuer.size()])
+                train_loss, train_loss_last_paf, train_loss_last_hm, lr_val, summary, queue_size = sess.run([
+                    total_loss, loss_last_paf, loss_last_hm, learning_rate, merged_summary_op, enqueuer.size()
+                ])
 
                 # log of training loss / accuracy
                 batch_per_sec = (gs_num - initial_gs_num) / (time.time() - time_started)
                 ex_per_sec = batch_per_sec * real_batch_size
-                logger.info('epoch=%.2f step=%d, %0.4f examples/sec lr=%f, loss=%g, loss_ll=%g, loss_ll_paf=%g, loss_ll_heat=%g' % (gs_num / step_per_epoch, gs_num, ex_per_sec, lr_val, train_loss, train_loss_ll, train_loss_ll_paf, train_loss_ll_heat))
+                logger.info('Epoch=%.2f step=%d, %0.4f examples/sec lr=%f, loss=%g'
+                 % (gs_num / step_per_epoch, gs_num, ex_per_sec, lr_val, train_loss))
                 last_gs_num = gs_num
 
                 file_writer.add_summary(summary, gs_num)
@@ -265,31 +264,32 @@ if __name__ == '__main__':
                 # save weights
                 saver.save(sess, os.path.join(args.modelpath, training_name, 'model'), global_step=global_step)
 
-                average_loss = average_loss_ll = average_loss_ll_paf = average_loss_ll_heat = 0
+                average_loss = average_loss_last_paf = average_loss_last_hm = 0
                 total_cnt = 0
 
                 if len(validation_cache) == 0:
-                    for images_test, heatmaps, vectmaps in tqdm(df_valid.get_data()):
-                        validation_cache.append((images_test, heatmaps, vectmaps))
+                    for val_images, heatmaps, vectmaps in tqdm(df_valid.get_data()):
+                        validation_cache.append((val_images, heatmaps, vectmaps))
                     df_valid.reset_state()
                     del df_valid
                     df_valid = None
 
                 # log of test accuracy
-                for images_test, heatmaps, vectmaps in validation_cache:
-                    lss, lss_ll, lss_ll_paf, lss_ll_heat, vectmap_sample, heatmap_sample = sess.run(
-                        [total_loss, total_loss_ll, total_loss_ll_paf, total_loss_ll_heat, output_vectmap, output_heatmap],
-                        feed_dict={q_inp: images_test, q_vect: vectmaps, q_heat: heatmaps}
+                for val_images, heatmaps, vectmaps in validation_cache:
+                    lss, lss_l_paf, lss_l_hm, vectmap_sample, heatmap_sample = sess.run(
+                        [total_loss, loss_last_paf, loss_last_hm, output_vectmap, output_heatmap],
+                        feed_dict={q_inp: val_images, q_vect: vectmaps, q_heat: heatmaps}
                     )
-                    average_loss += lss * len(images_test)
-                    average_loss_ll += lss_ll * len(images_test)
-                    average_loss_ll_paf += lss_ll_paf * len(images_test)
-                    average_loss_ll_heat += lss_ll_heat * len(images_test)
-                    total_cnt += len(images_test)
+                    average_loss += lss * len(val_images)
+                    average_loss_last_paf += lss_l_paf * len(val_images)
+                    average_loss_last_hm += lss_l_hm * len(val_images)
+                    total_cnt += len(val_images)
 
-                logger.info('validation(%d) %s loss=%f, loss_ll=%f, loss_ll_paf=%f, loss_ll_heat=%f' % (total_cnt, training_name, average_loss / total_cnt, average_loss_ll / total_cnt, average_loss_ll_paf / total_cnt, average_loss_ll_heat / total_cnt))
+                logger.info('Validation(%d) %s loss=%f, loss_last_paf=%f, loss_last_hm=%f'
+                         % (total_cnt, training_name, average_loss / total_cnt, average_loss_last_paf / total_cnt, average_loss_last_hm / total_cnt))
                 last_gs_num2 = gs_num
 
+                # Generate test images
                 outputMaps = []
                 # assumes more test images than batch size
                 for i in range(len(test_images) // args.batchsize) :
@@ -315,9 +315,8 @@ if __name__ == '__main__':
                 # save summary
                 summary = sess.run(merged_validate_op, feed_dict={
                     valid_loss: average_loss / total_cnt,
-                    valid_loss_ll: average_loss_ll / total_cnt,
-                    valid_loss_ll_paf: average_loss_ll_paf / total_cnt,
-                    valid_loss_ll_heat: average_loss_ll_heat / total_cnt,
+                    valid_loss_last_paf: average_loss_last_paf / total_cnt,
+                    valid_loss_last_hm: average_loss_last_hm / total_cnt,
                     sample_valid: test_results
                 })
                 file_writer.add_summary(summary, gs_num)

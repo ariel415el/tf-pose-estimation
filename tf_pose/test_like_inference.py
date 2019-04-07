@@ -42,7 +42,7 @@ if __name__ == '__main__':
         outputs = []
         with tf.device(tf.DeviceSpec(device_type="GPU", device_index=0)):
             with tf.variable_scope(tf.get_variable_scope()):
-               net, pretrain_path, last_layer = get_network(args.model_name, input_node)#, trainable=False)
+               net, pretrain_path, last_layer = get_network(args.model_name, input_node, trainable=False)
                outputs.append(net.get_output())
         outputs = tf.concat(outputs, axis=0, name='external_concat')
 

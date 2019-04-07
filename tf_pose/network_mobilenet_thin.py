@@ -84,7 +84,7 @@ class MobilenetNetworkThin(network_base.BaseNetwork):
                        'MConv_Stage6_L1_5')
              .concat(3, name='concat_stage7'))
 
-    def loss_l1_l2(self):
+    def loss_paf_hm(self):
         l1s = []
         l2s = []
         for layer_name in sorted(self.layers.keys()):
