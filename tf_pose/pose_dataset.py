@@ -32,6 +32,7 @@ from tf_pose.pose_augment import pose_flip, pose_rotation, pose_to_img, pose_cro
     pose_resize_shortestedge_random, pose_resize_shortestedge_fixed, pose_crop_center, pose_random_scale
 import tf_pose.common as common
 from numba import jit
+import json 
 
 logging.getLogger("requests").setLevel(logging.WARNING)
 logger = logging.getLogger('pose_dataset')
@@ -44,7 +45,6 @@ logger.addHandler(ch)
 
 mplset = False
 
-
 class DatasetMetaData:
     @staticmethod
     def parse_float(four_np):
@@ -56,27 +56,33 @@ class DatasetMetaData:
         assert len(four_nps) % 4 == 0
         return [(DatasetMetaData.parse_float(four_nps[x*4:x*4+4]) + adjust) for x in range(len(four_nps) // 4)]
 
-    def __init__(self, idx, img_url, img_meta, annotations, sigma):
+    def __init__(self, idx, img_path, annotations,img_width=None,img_height=None, sigma=8.0):
         self.idx = idx
-        self.img_url = img_url
+        self.img_path = img_path
         self.img = None
         self.sigma = sigma
 
-        self.height = int(img_meta['height'])
-        self.width = int(img_meta['width'])
+        if img_width is None or img_height is None:
+            print("#### DatasetMetaData: loading image to get its size: you might want to enter width/height to annotations")
+            self.img = cv2.imread(img_path)
+            # img_str = open(meta.img_path, 'rb').read()
+            # nparr = np.fromstring(img_str, np.uint8)
+            # self.img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+            self.img = None
+            img_width=self.img.shape[1]
+            img_height=self.img.shape[0]
+
+        self.height = img_height
+        self.width = img_width
 
         self.__num_parts = len(common.BC_parts)
         self.__limb_vecs = common.BC_pairs
 
         skeletons = []
         for ann in annotations:
-            if ann.get('num_keypoints', 0) == 0:
-                continue
-
-            kp = np.array(ann['keypoints'])
-            xs = kp[0::3]
-            ys = kp[1::3]
-            vs = kp[2::3]
+            xs = ann[0::3]
+            ys = ann[1::3]
+            vs = ann[2::3]
 
             joints = [(x, y) if v >= 1 else (-1000, -1000) for x, y, v in zip(xs, ys, vs)] 
             joints += [(-1000, -1000)]  # background
@@ -192,7 +198,7 @@ class DatasetMetaData:
                 vectormap[plane_idx*2+1][y][x] = vec_y
 
 
-class CocoToolPoseDataReader(RNGDataFlow):
+class BCToolPoseDataReader(RNGDataFlow):
     @staticmethod
     def display_image(inp, heatmap, vectmap, as_numpy=False):
         global mplset
@@ -202,11 +208,11 @@ class CocoToolPoseDataReader(RNGDataFlow):
         fig = plt.figure()
         a = fig.add_subplot(2, 2, 1)
         a.set_title('Image')
-        plt.imshow(CocoToolPoseDataReader.get_bgimg(inp))
+        plt.imshow(BCToolPoseDataReader.get_bgimg(inp))
 
         a = fig.add_subplot(2, 2, 2)
         a.set_title('Heatmap')
-        plt.imshow(CocoToolPoseDataReader.get_bgimg(inp, target_size=(heatmap.shape[1], heatmap.shape[0])), alpha=0.5)
+        plt.imshow(BCToolPoseDataReader.get_bgimg(inp, target_size=(heatmap.shape[1], heatmap.shape[0])), alpha=0.5)
         tmp = np.amax(heatmap, axis=2)
         plt.imshow(tmp, cmap=plt.cm.gray, alpha=0.5)
         plt.colorbar()
@@ -217,13 +223,13 @@ class CocoToolPoseDataReader(RNGDataFlow):
 
         a = fig.add_subplot(2, 2, 3)
         a.set_title('Vectormap-x')
-        plt.imshow(CocoToolPoseDataReader.get_bgimg(inp, target_size=(vectmap.shape[1], vectmap.shape[0])), alpha=0.5)
+        plt.imshow(BCToolPoseDataReader.get_bgimg(inp, target_size=(vectmap.shape[1], vectmap.shape[0])), alpha=0.5)
         plt.imshow(tmp2_odd, cmap=plt.cm.gray, alpha=0.5)
         plt.colorbar()
 
         a = fig.add_subplot(2, 2, 4)
         a.set_title('Vectormap-y')
-        plt.imshow(CocoToolPoseDataReader.get_bgimg(inp, target_size=(vectmap.shape[1], vectmap.shape[0])), alpha=0.5)
+        plt.imshow(BCToolPoseDataReader.get_bgimg(inp, target_size=(vectmap.shape[1], vectmap.shape[0])), alpha=0.5)
         plt.imshow(tmp2_even, cmap=plt.cm.gray, alpha=0.5)
         plt.colorbar()
 
@@ -244,16 +250,14 @@ class CocoToolPoseDataReader(RNGDataFlow):
             inp = cv2.resize(inp, target_size, interpolation=cv2.INTER_AREA)
         return inp
 
-    def __init__(self, is_train=True, decode_img=True, only_idx=-1, images_dir=None, anns_file=None):
+    def __init__(self, anns_file,  is_train=True):
         self.is_train = is_train
-        self.decode_img = decode_img
-        self.only_idx = only_idx
-        self.img_path = images_dir
-        self.coco = COCO(anns_file)
-        logger.info('%s anns: %d' % (anns_file, self.size()))
+        self.anns_file = anns_file
+        self.path_to_kps = json.load(open(anns_file))
+        logger.info('Found %d anns in file: %s'%(self.size(), anns_file))
 
     def size(self):
-        return len(self.coco.imgs)
+        return len(self.path_to_kps)
 
     def get_data(self):
         idxs = np.arange(self.size())
@@ -262,57 +266,37 @@ class CocoToolPoseDataReader(RNGDataFlow):
         else:
             pass
 
-        keys = list(self.coco.imgs.keys())
+        keys = list(self.path_to_kps.keys())
         for idx in idxs:
-            img_meta = self.coco.imgs[keys[idx]]
-            img_idx = img_meta['id']
-            ann_idx = self.coco.getAnnIds(imgIds=img_idx)
+            img_path = keys[idx]
+            image_meta = self.path_to_kps[keys[idx]]
+            anns = image_meta['keypoint_sets']
 
-            if 'http://' in self.img_path:
-                img_url = self.img_path + img_meta['file_name']
-            else:
-                img_url = os.path.join(self.img_path, img_meta['file_name'])
-
-            anns = self.coco.loadAnns(ann_idx)
-            meta = DatasetMetaData(idx, img_url, img_meta, anns, sigma=8.0)
-
-            total_keypoints = sum([ann.get('num_keypoints', 0) for ann in anns])
-            if total_keypoints == 0 and random.uniform(0, 1) > 0.2:
+            # avoid too much empty images
+            # num_annotated_persons = np.sum(1 for kps in anns if not all(val==0 for val in kps))
+            num_annotated_persons = len(anns) # assumes no empty annotations exist
+            if num_annotated_persons == 0 and random.uniform(0, 1) > 0.2:
                 continue
-
-            yield [meta]
+            img_width = image_meta['img_width'] if 'img_width' in image_meta else None
+            img_height = image_meta['img_height'] if 'img_height' in image_meta else None
+            
+            yield [DatasetMetaData(idx, img_path, anns,img_width=img_width,img_height=img_height, sigma=8.0)]
 
 
 def read_image_url(metas):
     for meta in metas:
-        img_str = None
-        if 'http://' in meta.img_url:
-            # print(meta.img_url)
-            for _ in range(10):
-                try:
-                    resp = requests.get(meta.img_url)
-                    if resp.status_code // 100 != 2:
-                        logger.warning('request failed code=%d url=%s' % (resp.status_code, meta.img_url))
-                        time.sleep(1.0)
-                        continue
-                    img_str = resp.content
-                    break
-                except Exception as e:
-                    logger.warning('request failed url=%s, err=%s' % (meta.img_url, str(e)))
-        else:
-            img_str = open(meta.img_url, 'rb').read()
-
+        # if meta.img is not None:
+        img_str = open(meta.img_path, 'rb').read()
         if not img_str:
-            logger.warning('image not read, path=%s' % meta.img_url)
+            logger.warning('Image not read, path=%s' % meta.img_url)
             raise Exception()
-
         nparr = np.fromstring(img_str, np.uint8)
         meta.img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
     return metas
 
 
-def get_dataflow(is_train, images_dir=None, anns_file=None, augment=True):
-    ds = CocoToolPoseDataReader(is_train, images_dir=images_dir, anns_file=anns_file)       # read data from lmdb
+def get_dataflow(anns_file, is_train ,augment=True):
+    ds = BCToolPoseDataReader(anns_file, is_train=is_train)       # read data from lmdb
     if is_train:
         ds = MapData(ds, read_image_url)
         if augment:
@@ -341,24 +325,10 @@ def get_dataflow(is_train, images_dir=None, anns_file=None, augment=True):
 
     return ds
 
-
-def _get_dataflow_onlyread(path, is_train, img_path=None):
-    ds = CocoToolPoseDataReader(path, img_path, is_train)  # read data from lmdb
-    ds = MapData(ds, read_image_url)
-    ds = MapData(ds, pose_to_img)
-    # ds = PrefetchData(ds, 1000, multiprocessing.cpu_count() * 4)
-    return ds
-
-
-def get_dataflow_batch(is_train, batchsize, images_dir=None, anns_file=None, augment=True):
-    logger.info('dataflow images_dir=%s' % images_dir)
-    ds = get_dataflow(is_train, images_dir=images_dir, anns_file=anns_file, augment=augment)
+def get_dataflow_batch(anns_file, is_train, batchsize, augment=True):
+    logger.info('Dataflow anns_file=%s' % anns_file)
+    ds = get_dataflow(anns_file, is_train , augment=augment)
     ds = BatchData(ds, batchsize)
-    # if is_train:
-    #     ds = PrefetchData(ds, 10, 2)
-    # else:
-    #     ds = PrefetchData(ds, 50, 2)
-
     return ds
 
 
@@ -430,34 +400,33 @@ class DataFlowToQueue(threading.Thread):
     def dequeue(self):
         return self.queue.dequeue()
 
+# if __name__ == '__main__':
+#     os.environ['CUDA_VISIBLE_DEVICES'] = ''
 
-if __name__ == '__main__':
-    os.environ['CUDA_VISIBLE_DEVICES'] = ''
+#     from pose_augment import set_network_input_wh, set_network_scale
+#     # set_network_input_wh(368, 368)
+#     set_network_input_wh(480, 320)
+#     set_network_scale(8)
 
-    from pose_augment import set_network_input_wh, set_network_scale
-    # set_network_input_wh(368, 368)
-    set_network_input_wh(480, 320)
-    set_network_scale(8)
+#     # df = get_dataflow('/data/public/rw/coco/annotations', True, '/data/public/rw/coco/')
+#     df = _get_dataflow_onlyread('/data/public/rw/coco/annotations', True, '/data/public/rw/coco/')
+#     # df = get_dataflow('/root/coco/annotations', False, img_path='http://gpu-twg.kakaocdn.net/braincloud/COCO/')
 
-    # df = get_dataflow('/data/public/rw/coco/annotations', True, '/data/public/rw/coco/')
-    df = _get_dataflow_onlyread('/data/public/rw/coco/annotations', True, '/data/public/rw/coco/')
-    # df = get_dataflow('/root/coco/annotations', False, img_path='http://gpu-twg.kakaocdn.net/braincloud/COCO/')
+#     from tensorpack.dataflow.common import TestDataSpeed
+#     TestDataSpeed(df).start()
+#     sys.exit(0)
 
-    from tensorpack.dataflow.common import TestDataSpeed
-    TestDataSpeed(df).start()
-    sys.exit(0)
+#     with tf.Session() as sess:
+#         df.reset_state()
+#         t1 = time.time()
+#         for idx, dp in enumerate(df.get_data()):
+#             if idx == 0:
+#                 for d in dp:
+#                     logger.info('%d dp shape={}'.format(d.shape))
+#             print(time.time() - t1)
+#             t1 = time.time()
+#             BCToolPoseDataReader.display_image(dp[0], dp[1].astype(np.float32), dp[2].astype(np.float32))
+#             print(dp[1].shape, dp[2].shape)
+#             pass
 
-    with tf.Session() as sess:
-        df.reset_state()
-        t1 = time.time()
-        for idx, dp in enumerate(df.get_data()):
-            if idx == 0:
-                for d in dp:
-                    logger.info('%d dp shape={}'.format(d.shape))
-            print(time.time() - t1)
-            t1 = time.time()
-            CocoToolPoseDataReader.display_image(dp[0], dp[1].astype(np.float32), dp[2].astype(np.float32))
-            print(dp[1].shape, dp[2].shape)
-            pass
-
-    logger.info('done')
+#     logger.info('done')

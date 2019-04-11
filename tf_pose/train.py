@@ -11,7 +11,7 @@ import numpy as np
 import tensorflow as tf
 from tqdm import tqdm
 
-from tf_pose.pose_dataset import get_dataflow_batch, DataFlowToQueue, CocoToolPoseDataReader
+from tf_pose.pose_dataset import get_dataflow_batch, DataFlowToQueue, BCToolPoseDataReader
 from tf_pose.pose_augment import set_network_input_wh, set_network_scale
 from tf_pose.common import get_sample_images
 import tf_pose.common as common
@@ -36,10 +36,8 @@ if __name__ == '__main__':
     parser.add_argument('--input-height', type=int, default=368)
     parser.add_argument('--checkpoint', type=str, default='')
 
-    parser.add_argument('--train_dir', type=str, default='/data/public/rw/coco/annotations')
-    parser.add_argument('--train_anns', type=str, default='/data/public/rw/coco/')
-    parser.add_argument('--val_dir', type=str, default='/data/public/rw/coco/annotations')
-    parser.add_argument('--val_anns', type=str, default='/data/public/rw/coco/')
+    parser.add_argument('--train_anns', type=str)
+    parser.add_argument('--val_anns', type=str)
 
     parser.add_argument('--batchsize', type=int, default=16)
     parser.add_argument('--virtual_batch', type=int, default=1)
@@ -47,7 +45,7 @@ if __name__ == '__main__':
     parser.add_argument('--decay_steps', type=int, default=10000)
     parser.add_argument('--decay_rate', type=float, default=0.33)
 
-    parser.add_argument('--max-epoch', type=int, default=30)
+    parser.add_argument('--max-epoch', type=int, default=600)
     parser.add_argument('--max_iter', type=int, default=999999)
 
     parser.add_argument('--modelpath', type=str, default='../models/')
@@ -77,18 +75,16 @@ if __name__ == '__main__':
         heatmap_node = tf.placeholder(tf.float32, shape=(args.batchsize, output_h, output_w, num_heatmaps), name='heatmap')
 
         # prepare data
-        df = get_dataflow_batch(True, args.batchsize, images_dir=args.train_dir, anns_file=args.train_anns, augment=args.no_augmentation)
+        df = get_dataflow_batch(args.train_anns, True, args.batchsize, augment=args.no_augmentation)
             # transfer inputs from ZMQ
         enqueuer = DataFlowToQueue(df, [input_node, heatmap_node, vectmap_node], queue_size=100)
         q_inp, q_heat, q_vect = enqueuer.dequeue()
 
-    df_valid = get_dataflow_batch(False, args.batchsize, images_dir=args.val_dir, anns_file=args.val_anns)
+    df_valid = get_dataflow_batch(args.val_anns, False, args.batchsize, augment=False)
     df_valid.reset_state()
     validation_cache = []
 
-    test_images = get_sample_images(args.input_width, args.input_height)
-    num_debug_images = (len(test_images) // args.batchsize) * args.batchsize
-    logger.debug('### Num test image: %d/%d' % (len(test_images), num_debug_images))
+    all_test_images = get_sample_images(args.input_width, args.input_height)
     logger.debug(q_inp)
     logger.debug(q_heat)
     logger.debug(q_vect)
@@ -98,15 +94,16 @@ if __name__ == '__main__':
 
     output_vectmap = []
     output_heatmap = []
+    losses = [] # for mobilenet_thin
     paf_losses = []
-    hm_losess = []
+    hm_losses = []
     last_hm_losses = []
     last_paf_losses = []
     outputs = []
+
     for gpu_id in range(args.gpus):
         with tf.device(tf.DeviceSpec(device_type="GPU", device_index=gpu_id)):
             with tf.variable_scope(tf.get_variable_scope(), reuse=(gpu_id > 0)):
-                print("### Network input size:  ",q_inp_split[gpu_id].shape)
                 net, pretrained_backbone, last_layer = get_network(args.model, q_inp_split[gpu_id], numHeatMaps=num_heatmaps, numPafMaps=num_pafmaps)
                 vect, heat = net.loss_last()
                 output_vectmap.append(vect)
@@ -114,30 +111,48 @@ if __name__ == '__main__':
                 outputs.append(net.get_output())
 
                 paf_maps, heat_maps = net.loss_paf_hm()
-                for idx_paf, paf_map in enumerate(paf_maps):
-                    loss_paf = tf.nn.l2_loss(tf.concat(paf_map, axis=0) - q_vect_split[gpu_id], name='loss_paf_stage%d_tower%d' % (idx_paf, gpu_id))
-                    paf_losses.append(loss_paf)
+                if args.model == "mobilenet_thin":
+                    for idx, (paf_map, heat_map) in enumerate(zip(paf_maps, heat_maps)):
+                        loss_paf = tf.nn.l2_loss(tf.concat(paf_map, axis=0) - q_vect_split[gpu_id], name='loss_l1_stage%d_tower%d' % (idx, gpu_id))
+                        loss_hm = tf.nn.l2_loss(tf.concat(heat_map, axis=0) - q_heat_split[gpu_id], name='loss_l2_stage%d_tower%d' % (idx, gpu_id))
+                        losses.append(tf.reduce_mean([loss_paf, loss_hm]))
                     last_paf_losses.append(loss_paf)
-                for idx_hm, heat_map in enumerate(heat_maps):
-                    loss_hm = tf.nn.l2_loss(tf.concat(heat_map, axis=0) - q_heat_split[gpu_id], name='loss_hm_stage%d_tower%d' % (idx_hm, gpu_id))
-                    hm_losess.append(loss_hm)
+                    last_hm_losses.append(loss_hm)
+                if args.model == "mobilenet_new":
+                    for idx_paf, paf_map in enumerate(paf_maps):
+                        loss_paf = tf.nn.l2_loss(tf.concat(paf_map, axis=0) - q_vect_split[gpu_id], name='loss_paf_stage%d_tower%d' % (idx_paf, gpu_id))
+                        paf_losses.append(loss_paf)
+                    last_paf_losses.append(loss_paf)
+                    for idx_hm, heat_map in enumerate(heat_maps):
+                        loss_hm = tf.nn.l2_loss(tf.concat(heat_map, axis=0) - q_heat_split[gpu_id], name='loss_hm_stage%d_tower%d' % (idx_hm, gpu_id))
+                        hm_losses.append(loss_hm)
                     last_hm_losses.append(loss_hm)
 
     outputs = tf.concat(outputs, axis=0)
 
     with tf.device(tf.DeviceSpec(device_type="GPU")):
         # define loss
-        total_loss = tf.reduce_mean(paf_losses + hm_losess) / args.batchsize
-        loss_last_paf = tf.reduce_mean(last_paf_losses) / args.batchsize
-        loss_last_hm = tf.reduce_mean(last_hm_losses) / args.batchsize
+        if args.model == "mobilenet_thin":
+            total_loss = tf.reduce_sum(losses) / args.batchsize
+            loss_last_paf = tf.reduce_sum(last_paf_losses) / args.batchsize
+            loss_last_hm = tf.reduce_sum(last_hm_losses) / args.batchsize
+        if args.model == "mobilenet_new":
+            total_loss = tf.reduce_mean([tf.reduce_sum(paf_losses), tf.reduce_sum(hm_losses)]) / args.batchsize
+            loss_last_paf = tf.reduce_mean(last_paf_losses) / args.batchsize
+            loss_last_hm = tf.reduce_mean(last_hm_losses) / args.batchsize     
         real_batch_size = args.batchsize * args.virtual_batch
         virtual_batch_total_loss = total_loss / real_batch_size
 
         # define optimizer
-        num_train_images = len(os.listdir(args.train_dir))
+        num_train_images = df.size() * args.batchsize # df is a batched dataflow
+        num_val_images = df_valid.size() * args.batchsize
+        num_test_images = (len(all_test_images) // args.batchsize) * args.batchsize
         step_per_epoch = num_train_images // real_batch_size
-        print("### Real batch size is " , real_batch_size)
-        print("### Train images: %d , steps per epoch: %d"%(num_train_images, step_per_epoch))
+        logger.debug("### Real batch size is %d"%real_batch_size)
+        logger.debug("### Num train images: %d"%num_train_images)
+        logger.debug("### Num val images: %d"%num_val_images)
+        logger.debug('### Num test image: %d/%d' % (num_test_images, len(all_test_images)))
+        logger.debug("Steps per epoch: %d"%step_per_epoch)
         global_step = tf.Variable(0, trainable=False)
 
         # set learning rate decay
@@ -153,7 +168,7 @@ if __name__ == '__main__':
     vars_to_optimize = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)
     if args.freeze_backbone:        
         vars_to_optimize = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES,'Openpose') 
-    print("### Optimizing %d\%d variables"%(len(vars_to_optimize),len(tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES))))
+    logger.debug("### Optimizing %d\%d variables"%(len(vars_to_optimize),len(tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES))))
     update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
     if args.virtual_batch < 2:
         with tf.control_dependencies(update_ops):
@@ -166,7 +181,7 @@ if __name__ == '__main__':
             train_step = optimizer.apply_gradients([(accum_vars[i], gv[1]) for i, gv in enumerate(gvs)])
             inc_gs_num = tf.assign(global_step, global_step + 1)
 
-    print("# Defined optimizers")
+    logger.info("# Defined optimizers")
     logger.info('define model-')
 
     # define summary
@@ -180,8 +195,8 @@ if __name__ == '__main__':
     valid_loss = tf.placeholder(tf.float32, shape=[])
     valid_loss_last_paf = tf.placeholder(tf.float32, shape=[])
     valid_loss_last_hm = tf.placeholder(tf.float32, shape=[])
-    sample_valid = tf.placeholder(tf.float32, shape=(num_debug_images, 640, 640, 3))
-    valid_img = tf.summary.image('validation sample', sample_valid, num_debug_images)
+    sample_valid = tf.placeholder(tf.float32, shape=(num_test_images, 640, 640, 3))
+    valid_img = tf.summary.image('validation sample', sample_valid, num_test_images)
     valid_loss_t = tf.summary.scalar("valid_loss", valid_loss)
     valid_loss_last_paf_t = tf.summary.scalar("valid_loss_last_paf", valid_loss_last_paf)
     valid_loss_last_hm_t = tf.summary.scalar("valid_loss_last_hm", valid_loss_last_hm)
@@ -276,8 +291,8 @@ if __name__ == '__main__':
 
                 # log of test accuracy
                 for val_images, heatmaps, vectmaps in validation_cache:
-                    lss, lss_l_paf, lss_l_hm, vectmap_sample, heatmap_sample = sess.run(
-                        [total_loss, loss_last_paf, loss_last_hm, output_vectmap, output_heatmap],
+                    lss, lss_l_paf, lss_l_hm = sess.run(
+                        [total_loss, loss_last_paf, loss_last_hm],
                         feed_dict={q_inp: val_images, q_vect: vectmaps, q_heat: heatmaps}
                     )
                     average_loss += lss * len(val_images)
@@ -292,9 +307,9 @@ if __name__ == '__main__':
                 # Generate test images
                 outputMaps = []
                 # assumes more test images than batch size
-                for i in range(len(test_images) // args.batchsize) :
+                for i in range(len(all_test_images) // args.batchsize) :
                     idx = i*args.batchsize
-                    chunk = test_images[idx:idx+args.batchsize]
+                    chunk = all_test_images[idx:idx+args.batchsize]
                     outputMat = sess.run(
                         outputs,
                         feed_dict={q_inp: np.array(chunk)}
@@ -306,8 +321,8 @@ if __name__ == '__main__':
 
                 test_results = []
 
-                for i in range(num_debug_images):
-                    test_result = CocoToolPoseDataReader.display_image(test_images[i], heatMat[i], pafMat[i], as_numpy=True)
+                for i in range(num_test_images):
+                    test_result = BCToolPoseDataReader.display_image(all_test_images[i], heatMat[i], pafMat[i], as_numpy=True)
                     test_result = cv2.resize(test_result, (640, 640))
                     test_result = test_result.reshape([640, 640, 3]).astype(float)
                     test_results.append(test_result)

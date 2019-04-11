@@ -89,7 +89,7 @@ class MobilenetNetworkNew(network_base.BaseNetwork):
 
             # final result
             last_hm = 'Hm_refinement_%d_hm' % (self.num_hm_refinements + 1)
-            (self.feed(last_paf, last_hm    )
+            (self.feed(last_hm, last_paf)
              .concat(3, name='concat_stage7'))
 
     def loss_paf_hm(self):
