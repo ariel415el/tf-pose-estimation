@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import cv2
 from tf_pose.pose_augment import *
 from tf_pose.common import *
-from tf_pose.pose_dataset import  CocoToolPoseDataReader
+from tf_pose.pose_dataset import  BCToolPoseDataReader
 import onnx
 from onnx import numpy_helper
 import matplotlib
@@ -50,7 +50,7 @@ def extract_heat_maps_from_ckp(ckp,image_path, trainable=False):
         outputMat = sess.run(outputs, feed_dict={input_node: inp})
         pafMat, heatMat = outputMat[:, :, :, 15:], outputMat[:, :, :, :15]
         for i in range(len(test_images)):
-            test_result = CocoToolPoseDataReader.display_image(test_images[i], heatMat[i], pafMat[i], as_numpy=True).astype(float)
+            test_result = BCToolPoseDataReader.display_image(test_images[i], heatMat[i], pafMat[i], as_numpy=True).astype(float)
             test_result = cv2.resize(test_result, (640, 640))
             test_result = test_result.reshape([640, 640, 3]).astype(float)
             cv2.imwrite(os.path.join(os.path.dirname(ckp),"ckp_test_%d.png"%i), test_result)
@@ -71,7 +71,7 @@ def extract_heat_maps_from_pb(pb_file, image_path):
                 outputMat = sess.run(outputs, feed_dict={"image:0": inp})
                 pafMat, heatMat = outputMat[:, :, :, 15:], outputMat[:, :, :, :15]
                 for i in range(len(test_images)):
-                    test_result = CocoToolPoseDataReader.display_image(test_images[i], heatMat[i], pafMat[i],
+                    test_result = BCToolPoseDataReader.display_image(test_images[i], heatMat[i], pafMat[i],
                                                                        as_numpy=True).astype(float)
                     test_result = cv2.resize(test_result, (640, 640))
                     test_result = test_result.reshape([640, 640, 3]).astype(float)

@@ -75,13 +75,13 @@ if __name__ == '__main__':
 
         a = fig.add_subplot(2, 2, 3)
         a.set_title('Vectormap-x')
-        # plt.imshow(CocoToolPoseDataReader.get_bgimg(inp, target_size=(vectmap.shape[1], vectmap.shape[0])), alpha=0.5)
+        # plt.imshow(BCToolPoseDataReader.get_bgimg(inp, target_size=(vectmap.shape[1], vectmap.shape[0])), alpha=0.5)
         plt.imshow(tmp2_odd, cmap=plt.cm.gray, alpha=0.5)
         plt.colorbar()
 
         a = fig.add_subplot(2, 2, 4)
         a.set_title('Vectormap-y')
-        # plt.imshow(CocoToolPoseDataReader.get_bgimg(inp, target_size=(vectmap.shape[1], vectmap.shape[0])), alpha=0.5)
+        # plt.imshow(BCToolPoseDataReader.get_bgimg(inp, target_size=(vectmap.shape[1], vectmap.shape[0])), alpha=0.5)
         plt.imshow(tmp2_even, cmap=plt.cm.gray, alpha=0.5)
         plt.colorbar()
         plt.savefig("/home/CoreNew/PoseEestimation/out.png")

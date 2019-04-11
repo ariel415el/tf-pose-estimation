@@ -78,7 +78,7 @@ class MobilenetNetworkNew(network_base.BaseNetwork):
             for hm_stage_id in range(self.num_hm_refinements):
                 last_hm = 'Hm_refinement_%d_hm' % (hm_stage_id + 1)
                 prefix_hm = 'Hm_refinement_%d' % (hm_stage_id + 2)
-                (self.feed(feature_lv, last_paf , last_hm)
+                (self.feed(feature_lv, last_paf , last_hm) # TODO: check if its faster to add last_hm to last_hm+'_concat'
                 .concat(3, name=prefix_hm + '_concat')
                 .separable_conv(3, 3, depth2(128), 1, name=prefix_hm + '_1')
                 .separable_conv(3, 3, depth2(128), 1, name=prefix_hm + '_2')
