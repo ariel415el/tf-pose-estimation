@@ -21,10 +21,12 @@ def get_onnx_dict(onnx_path, layer_name=None):
     model = onnx.load(onnx_path)
     layers = model.graph.initializer
     for layer in layers:
+        print("Onnx lyaer: ", layer.name)
         if layer_name in layer.name:
-            print("Onnx lyaer: ", layer.name)
             w = numpy_helper.to_array(layer)
             data_dict[layer.name.split(":")[0]] = w,"NA"
+        else:
+            print(layer_name ," not in ", layer.name)
     return data_dict
 
 
@@ -77,6 +79,7 @@ def extract_heat_maps_from_pb(pb_file, image_path):
                     test_result = test_result.reshape([640, 640, 3]).astype(float)
                     # cv2.imwrite(os.path.join(args.out_path,"all_hm_%d.png"%i),heatMat[i][-1])
                     cv2.imwrite(os.path.join(os.path.dirname(pb_file), "pb_test_%d.png" % i), test_result)
+                    cv2.imwrite(os.path.join(os.path.dirname(pb_file), "hm_test_%d.png" % i), heatMat[i][:,:,14]*255)
                 return
 
 def save_pb_file(ckp, path,trainable=False,do_transforms=False):
@@ -190,6 +193,37 @@ def compare_data_dicts(dict_source, dict_ref):
     print("same_layers: ", len(same_layers))
     return missed_layers, different_layers, same_layers
 
+def compare_dict_by_values(dict_source, dict_ref):
+    pairs = {}
+    zzz = [z for z in dict_ref if "Openpose/MConv_Stage1" in z or "Const" in z]
+    for key in [z for z in dict_source if "Openpose/MConv_Stage1" in z or "Const" in z]:
+        relevant = []
+        best_score = 99999
+        best_key = None
+        print("Source: ",key)
+        for key_2 in zzz:
+            cur_score = 99999
+            q = dict_source[key][0]
+            ref = dict_ref[key_2][0]
+            if q.shape == ref.shape:
+                cur_score = np.mean(np.abs(q - ref))
+            elif q.shape == ref.transpose().shape:
+                cur_score = np.mean(np.abs(q - ref.transpose()))
+            elif len(ref.shape) > 3 and q.shape == ref.transpose(2, 3, 0, 1).shape:
+                cur_score = np.mean(np.abs(q - ref.transpose(2, 3, 0, 1)))
+            if cur_score < best_score:
+                best_key = key_2
+                best_score = cur_score
+            # same = np.sum(dict_source[key][0] == dict_ref[key_2][0]) > 0.9*dict_source[key][0].size
+            # trans = np.sum(dict_source[key][0] == dict_ref[key_2][0].transpose()) > 0.9*dict_source[key][0].size
+        if best_score < 0.1:
+            relevant += [(best_key, best_score)]
+        #     print("\t" + "equal to ", key_2)
+        #     relevant += [(key_2, cur_score)]
+        pairs[key] = relevant
+    return pairs
+
+
 
 def create_onnx_from_pb(pb_path, onnx_path):
     # os.system(" python3 -m tf2onnx.convert --input %s --inputs image:0 --outputs Openpose/concat_stage7:0 --verbose --output  %s"%(pb_path, onnx_path))
@@ -218,12 +252,26 @@ def main():
     script_model = os.path.join(os.path.dirname(ckp), "model-91000/model-91000_frozen.pb")
     script_opt_model = os.path.join(os.path.dirname(ckp), "model-91000/model-91000_frozen_opt.pb")
     onnx_model_path = os.path.join(os.path.dirname(ckp), "freeze_ariel.onnx")
-    layer_name = "Openpose/MConv_Stage1_L1_1"
+    layer_name = ""#""Const"
 
-    cannon_const_pb = "/home/CoreNew/PoseEestimation/Cannon/PoseEstimation/pose_estimation_and_visualization_modules/freezed_model_constant.pb"
-    create_onnx_from_pb(cannon_const_pb, os.path.splitext(cannon_const_pb)[0] + ".onnx")
+    pre_trained_const_pb = "/briefcam/Projects/ArielE/tf-pose-git/models/graph/mobilenet_thin/graph_opt_constant_432x368.pb"
+    pre_trained_const_onnx = "/briefcam/Projects/ArielE/tf-pose-git/models/graph/mobilenet_thin/graph_opt_constant_432x368.onnx"
+    pre_trained_pb = get_ops_from_pb(pre_trained_const_pb, layer_name)
+    pre_trained_onn = get_onnx_dict(pre_trained_const_onnx, layer_name)
+    # compare_data_dicts(pre_trained_pb, pre_trained_onn)
+
+    const_pb = "/briefcam / Projects / ArielE / trained_models / multi - gpu / mobilenet_thin_batch_48_lr_0.0001_432x368_gpu1_from_reg_48_129k / model - 150002 / model - 150002_frozen_opt_constant.pb".replace(" ","")
+    const_onnx = "/briefcam / Projects / ArielE / trained_models / multi - gpu / mobilenet_thin_batch_48_lr_0.0001_432x368_gpu1_from_reg_48_129k / model - 150002 / model - 150002_frozen_opt_constant.onnx".replace(" ","")
+    pb = get_ops_from_pb(const_pb, layer_name)
+    onn = get_onnx_dict(const_onnx, layer_name)
+    pairs = compare_dict_by_values(pb, onn)
+    o_pairs = compare_dict_by_values(onn, pb)
+    pre_pairs = compare_dict_by_values(pre_trained_pb, pre_trained_onn)
+    o_pre_pairs = compare_dict_by_values(pre_trained_onn, pre_trained_pb)
+
+    extract_heat_maps_from_pb(const_pb,"/briefcam/Projects/ArielE/tf-pose-git/images/p1.jpg")
     exit()
-
+    #
     extract_heat_maps_from_ckp(ckp, small_train_image, trainable=False)
     # save_pb_file(ckp, pb_out_path, trainable=True, do_transforms=False)
     # extract_heat_maps_from_pb(pb_out_path, small_train_image)
