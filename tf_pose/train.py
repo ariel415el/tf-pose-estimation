@@ -206,10 +206,13 @@ if __name__ == '__main__':
     config = tf.ConfigProto(allow_soft_placement=True, log_device_placement=False)
     config.gpu_options.allow_growth = True
     with tf.Session(config=config) as sess:
-        training_name = '{}_batch_{}_lr_{}_{}x{}_{}'.format(
+        training_name = '{}_b_{}x{}_lr_{}x{}x{}_r_{}x{}_{}'.format(
             args.model,
             args.batchsize,
+            args.virtual_batch,
             args.lr,
+            args.decay_rate,
+            args.decay_steps,
             args.input_width,
             args.input_height,
             args.tag
@@ -300,7 +303,7 @@ if __name__ == '__main__':
                     average_loss_last_hm += lss_l_hm * len(val_images)
                     total_cnt += len(val_images)
 
-                logger.info('Validation(%d) %s loss=%f, loss_last_paf=%f, loss_last_hm=%f'
+                logger.info('Validation(%d imgs) %s loss=%f, loss_last_paf=%f, loss_last_hm=%f'
                          % (total_cnt, training_name, average_loss / total_cnt, average_loss_last_paf / total_cnt, average_loss_last_hm / total_cnt))
                 last_gs_num2 = gs_num
 
