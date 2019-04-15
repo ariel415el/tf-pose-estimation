@@ -59,7 +59,7 @@ if __name__ == '__main__':
     for fname in os.listdir(args.images):
         image_id += 1
         fpath = os.path.join(args.images, fname)
-        image = common.read_imgfile(fpath, None, None)
+        image = common.read_imgfile(fpath, w, h)
         print("###",fname)
         image_h, image_w = image.shape[:2]
         if image is None:

@@ -11,7 +11,7 @@ def main(graph_path, output_graph):
 	    graph_def.ParseFromString(f.read())
 
 	graph = tf.get_default_graph()
-	new_input = tf.placeholder(tf.float32, shape=(1 ,int(width),int(height), 3), name='image')
+	new_input = tf.placeholder(tf.float32, shape=(1 ,int(height),int(width), 3), name='image')
 	tf.import_graph_def(graph_def, name='', input_map={'image':new_input})
 	sess = tf.Session(graph=graph)
 
