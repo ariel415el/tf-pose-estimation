@@ -45,7 +45,7 @@ if __name__ == '__main__':
     parser.add_argument('--decay_steps', type=int, default=10000)
     parser.add_argument('--decay_rate', type=float, default=0.33)
 
-    parser.add_argument('--max-epoch', type=int, default=600)
+    parser.add_argument('--max-epoch', type=int, default=9999)
     parser.add_argument('--max_iter', type=int, default=999999)
 
     parser.add_argument('--modelpath', type=str, default='../models/')
@@ -140,15 +140,15 @@ if __name__ == '__main__':
             total_loss = tf.reduce_mean([tf.reduce_sum(paf_losses), tf.reduce_sum(hm_losses)]) / args.batchsize
             loss_last_paf = tf.reduce_mean(last_paf_losses) / args.batchsize
             loss_last_hm = tf.reduce_mean(last_hm_losses) / args.batchsize     
-        real_batch_size = args.batchsize * args.virtual_batch
-        virtual_batch_total_loss = total_loss / real_batch_size
+        virtual_batch_size = args.batchsize * args.virtual_batch
+        virtual_batch_total_loss = total_loss / virtual_batch_size
 
         # define optimizer
         num_train_images = df.size() * args.batchsize # df is a batched dataflow
         num_val_images = df_valid.size() * args.batchsize
         num_test_images = (len(all_test_images) // args.batchsize) * args.batchsize
-        step_per_epoch = num_train_images // real_batch_size
-        logger.debug("### Real batch size is %d"%real_batch_size)
+        step_per_epoch = num_train_images // virtual_batch_size
+        logger.debug("### Virtual batch size is %d"%virtual_batch_size)
         logger.debug("### Num train images: %d"%num_train_images)
         logger.debug("### Num val images: %d"%num_val_images)
         logger.debug('### Num test image: %d/%d' % (num_test_images, len(all_test_images)))
@@ -271,7 +271,7 @@ if __name__ == '__main__':
 
                 # log of training loss / accuracy
                 batch_per_sec = (gs_num - initial_gs_num) / (time.time() - time_started)
-                ex_per_sec = batch_per_sec * real_batch_size
+                ex_per_sec = batch_per_sec * virtual_batch_size
                 logger.info('Epoch=%.2f step=%d, %0.4f examples/sec lr=%f, loss=%g'
                  % (gs_num / step_per_epoch, gs_num, ex_per_sec, lr_val, train_loss))
                 last_gs_num = gs_num
