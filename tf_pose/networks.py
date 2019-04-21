@@ -41,7 +41,7 @@ def get_network(type, placeholder_input, sess_for_load=None, trainable=True, num
 
     elif type == 'mobilenet_new':
         net = MobilenetNetworkNew({'image': placeholder_input}, conv_width=0.75, conv_width2=0.50, trainable=trainable, numHeatMaps=numHeatMaps, numPafMaps=numPafMaps,
-                                     num_paf_refinements=5, num_hm_refinements=3)
+                                     num_paf_refinements=5, num_hm_refinements=5)
         pretrain_path = 'pretrained/mobilenet_v1_0.75_224_2017_06_14/mobilenet_v1_0.75_224.ckpt'
         last_layer = 'no_name_for_last_layer'
 

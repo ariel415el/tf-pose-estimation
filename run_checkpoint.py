@@ -43,6 +43,6 @@ if __name__ == '__main__':
 
         #flops = tf.profiler.profile(None, cmd='graph', options=tf.profiler.ProfileOptionBuilder.float_operation())
         #print('FLOP = ', flops.total_float_ops / float(1e6))
-        saver = tf.train.Saver(max_to_keep=100)
-        saver.save(sess, os.path.join(os.path.dirname(args.ckp), "generated_checkpoint"), global_step=1)
+        # saver = tf.train.Saver(max_to_keep=100)
+        # saver.save(sess, os.path.join(os.path.dirname(args.ckp), "generated_checkpoint"), global_step=1)
 

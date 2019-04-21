@@ -18,14 +18,8 @@ ch.setFormatter(formatter)
 logger.addHandler(ch)
 import json
 import os
+from tf_pose.pafprocess.python_paf_process import NUM_PART, NUM_HEATMAP
 
-def translate_op_top_coco(kps):
-        coco_keypoints_indices = [0, 15, 14, 17, 16, 5, 2, 6, 3, 7, 4, 11, 8, 12, 9, 13, 10] # taken from openpose master code  (filesustem cpp files)
-        assert( len(kps) == 54 )
-        result = []
-        for i in coco_keypoints_indices:
-              result +=kps[3*i:3*i+3]
-        return result
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='tf-pose-estimation run')
@@ -74,7 +68,7 @@ if __name__ == '__main__':
             num_person += 1
             kps= []
             p = {}
-            for i in range(18):
+            for i in range(NUM_PART):
                 if i in human.body_parts.keys():
                     kps += [ human.body_parts[i].x * image_w,  human.body_parts[i].y * image_h, human.body_parts[i].score]
                 else:
@@ -82,7 +76,7 @@ if __name__ == '__main__':
             p["filename"]=fname
             p['category_id'] = 1
             p['image_id'] = image_id
-            p['keypoints'] = translate_op_top_coco(kps)
+            p['keypoints'] = kps
             coco_json += [p]
         image = TfPoseEstimator.draw_humans(image, humans, imgcopy=False)
         #bgimg = cv2.cvtColor(image.astype(np.uint8), cv2.COLOR_BGR2RGB)

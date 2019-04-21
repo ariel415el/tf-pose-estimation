@@ -26,7 +26,6 @@ class BC_parts(Enum):
     right_ankle = 13
     Background = 14
 
-BC_flipped_indices = [0, 1, 3, 2, 5, 4, 7, 6, 9, 8, 11, 10, 13, 12 ,14]
 BC_pairs = [(0,1),(1,2),(1,3), (2,4),(4,6), (3,5),(5,7), (1,8),(8,10),(10,12), (1,9),(9,11),(11,13)]
 
 def read_imgfile(path, width=None, height=None):

@@ -12,13 +12,8 @@ from tf_pose import common
 from tf_pose.common import BC_pairs
 from tf_pose.tensblur.smoother import Smoother
 import tf_pose.common
-try:
-    from tf_pose.pafprocess import pafprocess
-except ModuleNotFoundError as e:
-    print(e)
-    print('you need to build c++ library for pafprocess. See : https://github.com/ildoonet/tf-pose-estimation/tree/master/tf_pose/pafprocess')
-    exit(-1)
-
+from tf_pose.pafprocess import python_paf_process
+from tf_pose.pafprocess.python_paf_process import NUM_PART, NUM_HEATMAP
 logger = logging.getLogger('TfPoseEstimator')
 logger.handlers.clear()
 logger.setLevel(logging.INFO)
@@ -271,28 +266,28 @@ class PoseEstimator:
 
     @staticmethod
     def estimate_paf(peaks, heat_mat, paf_mat):
-        pafprocess.process_paf(peaks, heat_mat, paf_mat)
+        subset, flat_info =  python_paf_process.estimate_paf(peaks, heat_mat, paf_mat)
 
         humans = []
-        for human_id in range(pafprocess.get_num_humans()):
+        for human_id in range(len(subset)):
             human = Human([])
             is_added = False
 
-            for part_idx in range(18):
-                c_idx = int(pafprocess.get_part_cid(human_id, part_idx))
+            for part_idx in range(NUM_PART):
+                c_idx = int(subset[human_id][part_idx])
                 if c_idx < 0:
                     continue
 
                 is_added = True
                 human.body_parts[part_idx] = BodyPart(
                     '%d-%d' % (human_id, part_idx), part_idx,
-                    float(pafprocess.get_part_x(c_idx)) / heat_mat.shape[1],
-                    float(pafprocess.get_part_y(c_idx)) / heat_mat.shape[0],
-                    pafprocess.get_part_score(c_idx)
+                    float(flat_info[c_idx]._peakX) / heat_mat.shape[1],
+                    float(flat_info[c_idx]._peakY) / heat_mat.shape[0],
+                    flat_info[c_idx]._paekScore
                 )
 
             if is_added:
-                score = pafprocess.get_score(human_id)
+                score = subset[human_id][NUM_PART] / subset[human_id][NUM_HEATMAP];
                 human.score = score
                 humans.append(human)
 
