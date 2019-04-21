@@ -56,7 +56,7 @@ python3 -m tensorflow.python.tools.optimize_for_inference \
     --input_names=image \
     --output_names="${OUT_LAYER}" \
     --transforms='
-     strip_unused_nodes(type=float, shape="1,368,432,3")
+     strip_unused_nodes(type=float, shape="1,"${HEIGHT}","${WIDTH}",3")
      remove_nodes(op=Identity, op=CheckNumerics)
      fold_constants(ignoreError=False)
      fold_old_batch_norms
@@ -72,10 +72,10 @@ echo ++++++++++++++++++++++++++++++++++++++
 echo ++++++++++ Test model  +++++++++++++++
 echo ++++++++++++++++++++++++++++++++++++++
 
-#python3 "${TF_DIR}"/ariel_run.py --images "${TF_DIR}"/images --model "${NEW_DIR}/"${MODEL}_frozen"${OPT}"_constant.pb  --resize "${WIDTH}"x"${HEIGHT}" --in_name image:0 --out_name "${OUT_LAYER}":0
-#mv "${TF_DIR}"/tf-openpose_"${MODEL}"_frozen"${OPT}"_constant_"${HEIGHT}"x"${WIDTH}".json "${NEW_DIR}"/tf-openpose_"${MODEL}"_frozen"${OPT}"_constant_"${WIDTH}"x"${HEIGHT}".json
-#python3 "${TF_DIR}"/vis/create_debug_images.py  "${TF_DIR}"/images "${NEW_DIR}"/tf-openpose_"${MODEL}"_frozen"${OPT}"_constant_"${WIDTH}"x"$HEIGHT}".json
-#mv  "${TF_DIR}"/images_out_"${MODEL}"_frozen"${OPT}"_constant_"${WIDTH}"x"${HEIGHT}" "${NEW_DIR}"
+python3 "${TF_DIR}"/ariel_run.py --images "${TF_DIR}"/images --model "${NEW_DIR}/"${MODEL}_frozen"${OPT}"_constant_"${HEIGHT}"x"${WIDTH}".pb  --resize "${WIDTH}"x"${HEIGHT}" --in_name image:0 --out_name "${OUT_LAYER}":0
+mv "${TF_DIR}"/tf-openpose_"${MODEL}"_frozen"${OPT}"_constant_"${HEIGHT}"x"${WIDTH}".json "${NEW_DIR}"/tf-openpose_"${MODEL}"_frozen"${OPT}"_constant_"${WIDTH}"x"${HEIGHT}".json
+python3 "${TF_DIR}"/vis/create_debug_images.py  "${TF_DIR}"/images "${NEW_DIR}"/tf-openpose_"${MODEL}"_frozen"${OPT}"_constant_"${WIDTH}"x"$HEIGHT}".json
+mv  "${TF_DIR}"/images_out_"${MODEL}"_frozen"${OPT}"_constant_"${WIDTH}"x"${HEIGHT}" "${NEW_DIR}"
 
 
 echo ++++++++++++++++++++++++++++++++++++++
@@ -83,7 +83,7 @@ echo ++++++++++ Convert to onnx +++++++++++
 echo ++++++++++++++++++++++++++++++++++++++
 
 ################## convert to onnx #################
-python3 -m tf2onnx.convert --input "${NEW_DIR}/${MODEL}"_frozen"${OPT}"_constant.pb --inputs image:0 --outputs "${OUT_LAYER}":0 --verbose --output "${NEW_DIR}/${MODEL}"_frozen"${OPT}"_constant.onnx
+python3 -m tf2onnx.convert --input "${NEW_DIR}/${MODEL}"_frozen"${OPT}"_constant_"${HEIGHT}"x"${WIDTH}".pb --inputs image:0 --outputs "${OUT_LAYER}":0 --verbose --output "${NEW_DIR}/${MODEL}"_frozen"${OPT}"_constant_"${HEIGHT}"x"${WIDTH}".onnx
 
 
 
@@ -93,6 +93,6 @@ echo ++++++++++++++++++++++++++++++++++++++
 
 ################## visualize onnx model  #################
 
-python "${TF_DIR}"/onnx/onnx/tools/net_drawer.py --input "${NEW_DIR}/${MODEL}"_frozen"${OPT}"_constant.onnx  --output  "${NEW_DIR}/${MODEL}"_frozen"${OPT}"_constant.dot --embed_docstring
-dot -Tsvg  "${NEW_DIR}/${MODEL}"_frozen"${OPT}"_constant.dot -o   "${NEW_DIR}/${MODEL}"_frozen"${OPT}"_constant.svg
+python "${TF_DIR}"/onnx/onnx/tools/net_drawer.py --input "${NEW_DIR}/${MODEL}"_frozen"${OPT}"_constant_"${HEIGHT}"x"${WIDTH}".onnx  --output  "${NEW_DIR}/${MODEL}"_frozen"${OPT}"_constant_"${HEIGHT}"x"${WIDTH}".dot --embed_docstring
+dot -Tsvg  "${NEW_DIR}/${MODEL}"_frozen"${OPT}"_constant_"${HEIGHT}"x"${WIDTH}".dot -o   "${NEW_DIR}/${MODEL}"_frozen"${OPT}"_constant_"${HEIGHT}"x"${WIDTH}".svg
 

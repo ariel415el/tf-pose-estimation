@@ -21,5 +21,5 @@ def main(graph_path, output_graph):
 
 if __name__ == '__main__':
 	graph_path = sys.argv[1]
-	main(graph_path, os.path.splitext(graph_path)[0]+"_constant.pb")
+	main(graph_path, os.path.splitext(graph_path)[0]+"_constant_%dx%d.pb"%(width,height))
 
