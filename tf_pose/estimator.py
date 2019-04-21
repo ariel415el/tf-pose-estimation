@@ -12,8 +12,8 @@ from tf_pose import common
 from tf_pose.common import BC_pairs
 from tf_pose.tensblur.smoother import Smoother
 import tf_pose.common
-from tf_pose.pafprocess import python_paf_process
-from tf_pose.pafprocess.python_paf_process import NUM_PART, NUM_HEATMAP
+from postProcess import python_paf_process
+from postProcess.python_paf_process import NUM_PART, NUM_HEATMAP
 logger = logging.getLogger('TfPoseEstimator')
 logger.handlers.clear()
 logger.setLevel(logging.INFO)
