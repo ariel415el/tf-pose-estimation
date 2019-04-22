@@ -186,9 +186,9 @@ class DatasetMetaData:
             for x in range(min_x, max_x):
                 bec_x = x - center_from[0]
                 bec_y = y - center_from[1]
-                dist = abs(bec_x * vec_y - bec_y * vec_x)
+                perpendicular_dist = abs(bec_x * vec_y - bec_y * vec_x)
 
-                if dist > threshold:
+                if perpendicular_dist > threshold:
                     continue
 
                 countmap[plane_idx][y][x] += 1

@@ -9,83 +9,53 @@ import numpy as np
 from tf_pose.estimator import TfPoseEstimator
 from tf_pose.networks import get_graph_path, model_wh
 
-logger = logging.getLogger('TfPoseEstimator')
-logger.setLevel(logging.DEBUG)
-ch = logging.StreamHandler()
-ch.setLevel(logging.DEBUG)
-formatter = logging.Formatter('[%(asctime)s] [%(name)s] [%(levelname)s] %(message)s')
-ch.setFormatter(formatter)
-logger.addHandler(ch)
 import json
 import os
-from tf_pose.pafprocess.python_paf_process import NUM_PART, NUM_HEATMAP
-
+from tf_pose.postProcess.python_paf_process import NUM_PART, NUM_HEATMAP
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='tf-pose-estimation run')
     parser.add_argument('--images', type=str)
     parser.add_argument('--model', type=str, default='cmu', help='cmu / mobilenet_thin')
 
-    parser.add_argument('--resize', type=str, default='0x0',
+    parser.add_argument('--resize', type=str, default='432x368',
                         help='if provided, resize images before they are processed. default=0x0, Recommends : 432x368 or 656x368 or 1312x736 ')
-    parser.add_argument('--resize-out-ratio', type=float, default=4.0,
-                        help='if provided, resize heatmaps before they are post-processed. default=1.0')
+
+    parser.add_argument('--upsample_heatmaps', type=int, default=4)
     parser.add_argument('--in_name', type=str, default="image:0")
     parser.add_argument('--out_name', type=str, default="Openpose/concat_stage7:0")
 
+    parser.add_argument('--debug_images', action='store_true')
+
     args = parser.parse_args()
-    graph_path = get_graph_path(args.model) if args.model in ["cmu", ' mobilenet_thin'] else args.model
-    model_name = args.model if args.model in ["cmu", ' mobilenet_thin'] else os.path.splitext(os.path.basename(graph_path))[0]
+    model_name = os.path.splitext(os.path.basename(args.model))[0]
     out_dir = args.images + "_out_" + model_name +"_"+  args.resize
     if not os.path.exists(out_dir): 
        os.makedirs(out_dir)
     w, h = model_wh(args.resize)
-    if w == 0 or h == 0:
-        e = TfPoseEstimator(graph_path, input_name=args.in_name, output_name=args.out_name, target_size=(432, 368))
-    else:
-        print("### graph path = ",graph_path)
-        e = TfPoseEstimator(graph_path, input_name=args.in_name, output_name=args.out_name, target_size=(w, h))
+    tf_estimator = TfPoseEstimator(args.model, input_name=args.in_name, output_name=args.out_name, input_size=(w, h))
     total_time = 0
-    coco_json = []
-    image_id=0
-    num_person =0
+    coco_json = {}
     # estimate human poses from a single imaige !
     for fname in os.listdir(args.images):
-        image_id += 1
+        print("Working on: ",fname)
+        
         fpath = os.path.join(args.images, fname)
-        image = common.read_imgfile(fpath, w, h)
-        print("###",fname)
-        image_h, image_w = image.shape[:2]
-        if image is None:
-            logger.error('Image can not be read, path=%s' % args.image)
+        org_image = cv2.imread(fpath, cv2.IMREAD_COLOR)
+        org_image_h, org_image_w = org_image.shape[:2]
+        coco_json[os.path.abspath(fpath)] = {"keypoint_sets" : [], "img_width": org_image_w, "img_height" : org_image_h}
+        if org_image is None:
+            print('\tImage can not be read, path=%s' % args.image)
             continue
-        t = time.time()
-        humans = e.inference(image, resize_to_default=(w > 0 and h > 0), upsample_size=args.resize_out_ratio)
-        elapsed = time.time() - t
-        total_time += elapsed
-        logger.info('inference image: %s in %.4f seconds.' % (fname, elapsed))
-        for human in humans:
-            num_person += 1
-            kps= []
-            p = {}
-            for i in range(NUM_PART):
-                if i in human.body_parts.keys():
-                    kps += [ human.body_parts[i].x * image_w,  human.body_parts[i].y * image_h, human.body_parts[i].score]
-                else:
-                    kps += [0,0,0]
-            p["filename"]=fname
-            p['category_id'] = 1
-            p['image_id'] = image_id
-            p['keypoints'] = kps
-            coco_json += [p]
-        image = TfPoseEstimator.draw_humans(image, humans, imgcopy=False)
-        #bgimg = cv2.cvtColor(image.astype(np.uint8), cv2.COLOR_BGR2RGB)
-        #cv2.imwrite(os.path.join(out_dir,fname), bgimg)
-        cv2.imwrite(os.path.join(out_dir,fname), image)
-        print("saving image to: ",os.path.join(out_dir,fname))
-    if image_id > 0 and num_person > 0 : 
-        logger.info('time per image: %.4f seconds.' % (total_time/float(image_id)))
-        logger.info('time per person: %.4f seconds.' % (total_time/float(num_person)))
+        humans = tf_estimator.inference(org_image, upsampleHeatMaps=args.upsample_heatmaps)
+        coco_json[os.path.abspath(fpath)]["keypoint_sets"] = humans
+
+        if args.debug_images:
+            debug_image = TfPoseEstimator.draw_humans(org_image, humans, imgcopy=False)
+            print("\tSaving image to: ",os.path.join(out_dir,fname))
+            cv2.imwrite(os.path.join(out_dir, fname), debug_image)
+
     json_path =  os.path.join(os.path.dirname(args.images), "tf-openpose_%s_%s.json"%(model_name, args.resize))
-    print("saving json to: ",json_path)
+    print("###########################")
+    print("Saving json to: ",json_path)
     json.dump(coco_json, open(json_path, 'w'))

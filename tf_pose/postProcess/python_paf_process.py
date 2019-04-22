@@ -91,7 +91,7 @@ def estimate_paf(peaks, heatMat, pafMat):
                     step_location_y = roundpaf(peak_a_list[peak_0_id]._peakY + step * y_diff / float (STEP_PAF))
                     step_value_x = pafMat[step_location_y, step_location_x, 2*pair_id]
                     step_value_y = pafMat[step_location_y, step_location_x, 2*pair_id + 1]
-                    score = abs(direction_vec._x) * step_value_x  + abs(direction_vec._y) *step_value_y
+                    score = direction_vec._x * step_value_x  + direction_vec._y*step_value_y
                     scores += score
                     if score > THRESH_VECTOR_SCORE:
                         numValidVectorFraction += 1
@@ -105,7 +105,6 @@ def estimate_paf(peaks, heatMat, pafMat):
                                                     etc=totalScoreCriterion + peak_a_list[peak_0_id]._paekScore +
                                                                                 peak_b_list[peak_1_id]._paekScore)
                     connectionCandidates += [(candidate)]
-
 
 
         # save only best connection for each peak
@@ -140,7 +139,7 @@ def estimate_paf(peaks, heatMat, pafMat):
                         subset_idx1 = subset_id
                     num_intersectiong_humans += 1
 
-            if num_intersectiong_humans ==1 : # if not there, add the other peak to this human
+            if num_intersectiong_humans ==1 : # if not already there, add the other peak to this human
                 if subset[subset_idx0][BC_PAIRS[pair_id][1]] != connection._peakGlobalId1:
                     subset[subset_idx0][BC_PAIRS[pair_id][1]] = connection._peakGlobalId1
                     subset[subset_idx0][NUM_PART] += flat_peaks[connection._peakGlobalId1]._paekScore + connection._score
@@ -180,7 +179,6 @@ def estimate_paf(peaks, heatMat, pafMat):
         if (instance[NUM_HEATMAP] < THRESH_PART_CNT or (instance[NUM_PART] / instance[NUM_HEATMAP]) < THRESH_HUMAN_SCORE):
             continue
         else:
-            print('Asd')
             new_subset.append(instance)
 
     return new_subset, flat_peaks
