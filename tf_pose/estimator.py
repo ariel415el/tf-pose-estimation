@@ -8,11 +8,11 @@ import numpy as np
 import tensorflow as tf
 import time
 
-import common
-from common import BC_pairs
-from tensblur.smoother import Smoother
-from postProcess  import python_paf_process
-from postProcess.python_paf_process import NUM_PART, NUM_HEATMAP
+from tf_pose import common
+from tf_pose.common import BC_pairs
+from tf_pose.tensblur.smoother import Smoother
+from tf_pose.postProcess  import python_paf_process
+from tf_pose.postProcess.python_paf_process import NUM_PART, NUM_HEATMAP
 
 def _round(v):
     return int(round(v))
@@ -27,9 +27,11 @@ def _include_part(part_list, part_idx):
 
 def fit_humans_to_size(humans,w, h):
     for human in humans:
-        human[::3] = (human[::3] * w + 0.5)
-        human[1::3] = (human[1::3] * h + 0.5)
-    return humans.astype(int)
+        # human[::3] = (human[::3] * w + 0.5)
+        # human[1::3] = (human[1::3] * h + 0.5)
+        human[::3] = [int(x* w + 0.5) for x in human[::3]]
+        human[1::3] = [int(x* h + 0.5) for x in human[1::3]]
+    return humans
 
 
 
@@ -58,7 +60,7 @@ class PoseEstimator:
 
 
             humans += [human]
-        return np.array(humans)
+        return humans
 
 
 class TfPoseEstimator:

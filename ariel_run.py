@@ -30,7 +30,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     model_name = os.path.splitext(os.path.basename(args.model))[0]
-    out_dir = args.images + "_out_" + model_name +"_"+  args.resize
+    out_dir = args.images + "_out_" + model_name
     if not os.path.exists(out_dir): 
        os.makedirs(out_dir)
     w, h = model_wh(args.resize)
@@ -50,13 +50,14 @@ if __name__ == '__main__':
             continue
         humans = tf_estimator.inference(org_image, upsampleHeatMaps=args.upsample_heatmaps)
         coco_json[os.path.abspath(fpath)]["keypoint_sets"] = humans
+        # import pdb;pdb.set_trace()
 
         if args.debug_images:
-            debug_image = draw_humans(org_image, humans, imgcopy=False)
+            debug_image = draw_humans(org_image, np.array(humans), imgcopy=False)
             print("\tSaving image to: ",os.path.join(out_dir,fname))
             cv2.imwrite(os.path.join(out_dir, fname), debug_image)
 
-    json_path =  os.path.join(os.path.dirname(args.images), "tf-openpose_%s_%s.json"%(model_name, args.resize))
+    json_path =  os.path.join(os.path.dirname(args.images), "tf-openpose_%s.json"%model_name)
 
     print("###########################")
     print("Saving json to: ",json_path)

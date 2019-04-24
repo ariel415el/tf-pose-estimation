@@ -197,26 +197,31 @@ class DatasetMetaData:
 
 
 class BCToolPoseDataReader(RNGDataFlow):
-    def __init__(self, anns_file,  is_train=True):
+    def __init__(self, anns_file,  is_train=True, limit_data=None):
         self.is_train = is_train
         self.anns_file = anns_file
-        self.path_to_kps = json.load(open(anns_file))
+        self.path_to_kps_dict = json.load(open(anns_file))
+        if (limit_data is not None) and (limit_data < len(self.path_to_kps_dict)):
+            import random
+            print("# Limiting data images")
+            new_keys = list(self.path_to_kps_dict.keys())
+            random.shuffle(new_keys)
+            new_keys = new_keys[:limit_data]
+            self.path_to_kps_dict = dict([(k, self.path_to_kps_dict[k]) for k in new_keys])
+
         logger.info('Found %d anns in file: %s'%(self.size(), anns_file))
 
     def size(self):
-        return len(self.path_to_kps)
+        return len(self.path_to_kps_dict)
 
     def get_data(self):
         idxs = np.arange(self.size())
-        if self.is_train:
-            self.rng.shuffle(idxs)
-        else:
-            pass
+        self.rng.shuffle(idxs)
 
-        keys = list(self.path_to_kps.keys())
+        keys = list(self.path_to_kps_dict.keys())
         for idx in idxs:
             img_path = keys[idx]
-            image_meta = self.path_to_kps[keys[idx]]
+            image_meta = self.path_to_kps_dict[keys[idx]]
             anns = image_meta['keypoint_sets']
 
             # avoid too much empty images
@@ -227,7 +232,7 @@ class BCToolPoseDataReader(RNGDataFlow):
             img_width = image_meta['img_width'] if 'img_width' in image_meta else None
             img_height = image_meta['img_height'] if 'img_height' in image_meta else None
             
-            yield [DatasetMetaData(idx, img_path, anns,img_width=img_width,img_height=img_height, sigma=8.0)]
+            yield [DatasetMetaData(idx, img_path, anns,img_width=img_width, img_height=img_height, sigma=8.0)]
 
 
 def read_image_url(metas):
@@ -242,8 +247,8 @@ def read_image_url(metas):
     return metas
 
 
-def get_dataflow(anns_file, is_train ,augmentor, augment=True):
-    ds = BCToolPoseDataReader(anns_file, is_train=is_train)       # read data from lmdb
+def get_dataflow(anns_file, is_train ,augmentor, augment=True, limit_data=None):
+    ds = BCToolPoseDataReader(anns_file, is_train=is_train, limit_data=limit_data)       # read data from lmdb
     if is_train:
         ds = MapData(ds, read_image_url)
         if augment:
@@ -272,9 +277,9 @@ def get_dataflow(anns_file, is_train ,augmentor, augment=True):
 
     return ds
 
-def get_dataflow_batch(anns_file, is_train, batchsize, augmentor, augment=True):
+def get_dataflow_batch(anns_file, is_train, batchsize, augmentor, augment=True, limit_data=None):
     logger.info('Dataflow anns_file=%s' % anns_file)
-    ds = get_dataflow(anns_file, is_train, augmentor=augmentor, augment=augment)
+    ds = get_dataflow(anns_file, is_train, augmentor=augmentor, augment=augment, limit_data=limit_data)
     ds = BatchData(ds, batchsize)
     return ds
 

@@ -40,6 +40,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--train_anns', type=str)
     parser.add_argument('--val_anns', type=str)
+    parser.add_argument('--limit_val_images', type=int, default=5000)
 
     parser.add_argument('--batchsize', type=int, default=16)
     parser.add_argument('--virtual_batch', type=int, default=1)
@@ -77,7 +78,7 @@ if __name__ == '__main__':
         enqueuer = DataFlowToQueue(df, [input_node, heatmap_node, vectmap_node], queue_size=100)
         q_inp, q_heat, q_vect = enqueuer.dequeue()
 
-    df_valid = get_dataflow_batch(args.val_anns, is_train=False, batchsize=args.batchsize, augmentor=pose_augmentor, augment=False)
+    df_valid = get_dataflow_batch(args.val_anns, is_train=False, batchsize=args.batchsize, augmentor=pose_augmentor, augment=False, limit_data=args.limit_val_images)
     df_valid.reset_state()
     validation_cache = []
 
@@ -281,13 +282,15 @@ if __name__ == '__main__':
                 average_loss = average_loss_last_paf = average_loss_last_hm = 0
                 total_cnt = 0
 
+                print("### Validation cach size ", len(validation_cache))
                 if len(validation_cache) == 0:
+                    print("### Loading validation Cach")
                     for val_images, heatmaps, vectmaps in tqdm(df_valid.get_data()):
                         validation_cache.append((val_images, heatmaps, vectmaps))
                     df_valid.reset_state()
                     del df_valid
                     df_valid = None
-
+                print("### Validation cach loaded")
                 # log of test accuracy
                 for val_images, heatmaps, vectmaps in validation_cache:
                     lss, lss_l_paf, lss_l_hm = sess.run(
