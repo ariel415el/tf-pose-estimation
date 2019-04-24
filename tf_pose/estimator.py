@@ -8,11 +8,11 @@ import numpy as np
 import tensorflow as tf
 import time
 
-from tf_pose import common
-from tf_pose.common import BC_pairs
-from tf_pose.tensblur.smoother import Smoother
-from tf_pose.postProcess  import python_paf_process
-from tf_pose.postProcess.python_paf_process import NUM_PART, NUM_HEATMAP
+import common
+from common import BC_pairs
+from tensblur.smoother import Smoother
+from postProcess  import python_paf_process
+from postProcess.python_paf_process import NUM_PART, NUM_HEATMAP
 
 def _round(v):
     return int(round(v))
@@ -23,6 +23,15 @@ def _include_part(part_list, part_idx):
         if part_idx == part.part_idx:
             return True, part
     return False, None
+
+
+def fit_humans_to_size(humans,w, h):
+    for human in humans:
+        human[::3] = (human[::3] * w + 0.5)
+        human[1::3] = (human[1::3] * h + 0.5)
+    return humans.astype(int)
+
+
 
 
 class PoseEstimator:
@@ -123,36 +132,6 @@ class TfPoseEstimator:
         npimg_q = npimg_q.astype(np.uint8)
         return npimg_q
 
-    @staticmethod
-    def draw_humans(npimg, humans, imgcopy=False):
-        if imgcopy:
-            npimg = np.copy(npimg)
-        image_h, image_w = npimg.shape[:2]
-
-        colors = np.random.rand(1,3)
-        sks = np.array([(0,1),(1,2),(1,3), (2,4),(4,6), (3,5),(5,7), (1,8),(8,10),(10,12), (1,9),(9,11),(11,13)])
-        centers = {}
-        
-        for i,kp in enumerate(humans):
-            # draw point
-            x = kp[0::3]
-            y = kp[1::3]
-            v = kp[2::3]
-            random_color = list(np.random.rand(1,3)[0]*255)
-            # draw limbs
-            for sk in sks:
-                if np.all(v[sk] > 0):
-                    center_1 = (x[sk[0]],y[sk[0]])
-                    center_0 = (x[sk[1]],y[sk[1]])
-                    cv2.line(npimg, center_0, center_1, random_color, 3)
-            for i in range(common.BC_parts.Background.value):
-                if v[i] > 0:
-                    cv2.circle(npimg, (x[i], y[i]), 3, [0,0,0], thickness=3, lineType=8, shift=0)
-
-        return npimg
-
-
-
     def inference(self, org_img, upsampleHeatMaps):
         if org_img is None:
             raise Exception('The image is not valid. Please check your image exists.')
@@ -183,11 +162,55 @@ class TfPoseEstimator:
         t = time.time()
         humans = PoseEstimator.estimate_paf(peaks, self.heatMat, self.pafMat)
         print('\tPost-process time=%.5f' % (time.time() - t))
-    
-        # fit humans to original image size
-        for human in humans:
-            human[::3] = (human[::3]*org_img.shape[1] +0.5)
-            human[1::3] = (human[1::3]*org_img.shape[0] +0.5)
 
-        return humans.astype(int)
+        humans = fit_humans_to_size(humans, org_img.shape[1],org_img.shape[0])
 
+        return humans
+
+
+def create_debug_collage(inp, heatmap, vectmap, show_pose=False):
+    global mplset
+    mplset = True
+    import matplotlib.pyplot as plt
+
+    fig = plt.figure()
+    a = fig.add_subplot(2, 2, 1)
+    a.set_title('Image')
+    peaksMap, upscaled_heatmap, upscaled_vectmaps = common.prepare_heatmaps(heatmap, vectmap, upsample=4)
+    if show_pose:
+        humans = PoseEstimator.estimate_paf(peaksMap, upscaled_heatmap, upscaled_vectmaps)
+        humans = fit_humans_to_size(humans,inp.shape[1],inp.shape[0])
+        debug_image = common.draw_humans(inp, humans, imgcopy=True)
+        plt.imshow(debug_image)
+    else:
+        plt.imshow(inp)
+
+    a = fig.add_subplot(2, 2, 2)
+    a.set_title('Heatmap')
+    plt.imshow(common.get_grey_img(inp, target_size=(upscaled_heatmap.shape[1], upscaled_heatmap.shape[0])), alpha=0.5, cmap='gray')
+    tmp = np.amax(upscaled_heatmap, axis=2)*255
+    plt.imshow(tmp, cmap='hot', alpha=0.5)
+    plt.colorbar()
+
+    tmp2 = upscaled_vectmaps.transpose((2, 0, 1))
+    tmp2_odd = np.amax(np.absolute(tmp2[::2, :, :]), axis=0)*255
+    tmp2_even = np.amax(np.absolute(tmp2[1::2, :, :]), axis=0)*255
+
+    a = fig.add_subplot(2, 2, 3)
+    a.set_title('Vectormap-x')
+    plt.imshow(common.get_grey_img(inp, target_size=(upscaled_vectmaps.shape[1], upscaled_vectmaps.shape[0])), alpha=0.5, cmap='gray')
+    plt.imshow(tmp2_odd, cmap='hot', alpha=0.5)
+    plt.colorbar()
+
+    a = fig.add_subplot(2, 2, 4)
+    a.set_title('Vectormap-y')
+    plt.imshow(common.get_grey_img(inp, target_size=(upscaled_vectmaps.shape[1], upscaled_vectmaps.shape[0])), alpha=0.5, cmap='gray')
+    plt.imshow(tmp2_even, cmap='hot', alpha=0.5)
+    plt.colorbar()
+
+    fig.canvas.draw()
+    data = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8, sep='')
+    data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+    fig.clear()
+    plt.close()
+    return data

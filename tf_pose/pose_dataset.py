@@ -27,9 +27,9 @@ from tensorpack.dataflow.common import BatchData, MapData
 from tensorpack.dataflow.parallel import PrefetchData
 from tensorpack.dataflow.base import RNGDataFlow, DataFlowTerminated
 
-from tf_pose.pose_augment import pose_flip, pose_rotation, pose_to_img, pose_crop_random, \
-    pose_resize_shortestedge_random, pose_resize_shortestedge_fixed, pose_crop_center, pose_random_scale
-import tf_pose.common as common
+from pose_augment import PoseAugmentor
+import common
+from tf_pose.estimator import PoseEstimator
 from numba import jit
 import json 
 
@@ -60,7 +60,6 @@ class DatasetMetaData:
         self.img_path = img_path
         self.img = None
         self.sigma = sigma
-
         if img_width is None or img_height is None:
             print("#### DatasetMetaData: loading image to get its size: you might want to enter width/height to annotations")
             self.img = cv2.imread(img_path)
@@ -198,57 +197,6 @@ class DatasetMetaData:
 
 
 class BCToolPoseDataReader(RNGDataFlow):
-    @staticmethod
-    def display_image(inp, heatmap, vectmap, as_numpy=False):
-        global mplset
-        mplset = True
-        import matplotlib.pyplot as plt
-
-        fig = plt.figure()
-        a = fig.add_subplot(2, 2, 1)
-        a.set_title('Image')
-        plt.imshow(BCToolPoseDataReader.get_bgimg(inp))
-
-        a = fig.add_subplot(2, 2, 2)
-        a.set_title('Heatmap')
-        plt.imshow(BCToolPoseDataReader.get_bgimg(inp, target_size=(heatmap.shape[1], heatmap.shape[0])), alpha=0.5)
-        tmp = np.amax(heatmap, axis=2)
-        plt.imshow(tmp, cmap=plt.cm.gray, alpha=0.5)
-        plt.colorbar()
-
-        tmp2 = vectmap.transpose((2, 0, 1))
-        tmp2_odd = np.amax(np.absolute(tmp2[::2, :, :]), axis=0)
-        tmp2_even = np.amax(np.absolute(tmp2[1::2, :, :]), axis=0)
-
-        a = fig.add_subplot(2, 2, 3)
-        a.set_title('Vectormap-x')
-        plt.imshow(BCToolPoseDataReader.get_bgimg(inp, target_size=(vectmap.shape[1], vectmap.shape[0])), alpha=0.5)
-        plt.imshow(tmp2_odd, cmap=plt.cm.gray, alpha=0.5)
-        plt.colorbar()
-
-        a = fig.add_subplot(2, 2, 4)
-        a.set_title('Vectormap-y')
-        plt.imshow(BCToolPoseDataReader.get_bgimg(inp, target_size=(vectmap.shape[1], vectmap.shape[0])), alpha=0.5)
-        plt.imshow(tmp2_even, cmap=plt.cm.gray, alpha=0.5)
-        plt.colorbar()
-
-        if not as_numpy:
-            plt.show()
-        else:
-            fig.canvas.draw()
-            data = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8, sep='')
-            data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
-            fig.clear()
-            plt.close()
-            return data
-
-    @staticmethod
-    def get_bgimg(inp, target_size=None):
-        inp = cv2.cvtColor(inp.astype(np.uint8), cv2.COLOR_BGR2RGB)
-        if target_size:
-            inp = cv2.resize(inp, target_size, interpolation=cv2.INTER_AREA)
-        return inp
-
     def __init__(self, anns_file,  is_train=True):
         self.is_train = is_train
         self.anns_file = anns_file
@@ -294,20 +242,20 @@ def read_image_url(metas):
     return metas
 
 
-def get_dataflow(anns_file, is_train ,augment=True):
+def get_dataflow(anns_file, is_train ,augmentor, augment=True):
     ds = BCToolPoseDataReader(anns_file, is_train=is_train)       # read data from lmdb
     if is_train:
         ds = MapData(ds, read_image_url)
         if augment:
-            ds = MapDataComponent(ds, pose_random_scale)
-            ds = MapDataComponent(ds, pose_rotation)
-            ds = MapDataComponent(ds, pose_flip)
-            ds = MapDataComponent(ds, pose_resize_shortestedge_random)
-            ds = MapDataComponent(ds, pose_crop_random)
+            ds = MapDataComponent(ds, augmentor.pose_random_scale)
+            ds = MapDataComponent(ds, augmentor.pose_rotation)
+            ds = MapDataComponent(ds, augmentor.pose_flip)
+            ds = MapDataComponent(ds, augmentor.pose_resize_shortestedge_random)
+            ds = MapDataComponent(ds, augmentor.pose_crop_random)
         else:
-            ds = MapDataComponent(ds, pose_resize_shortestedge_fixed)
-            ds = MapDataComponent(ds, pose_crop_center)
-        ds = MapData(ds, pose_to_img)
+            ds = MapDataComponent(ds, augmentor.pose_resize_shortestedge_fixed)
+            ds = MapDataComponent(ds, augmentor.pose_crop_center)
+        ds = MapData(ds, augmentor.pose_to_img)
         # augs = [
         #     imgaug.RandomApplyAug(imgaug.RandomChooseAug([
         #         imgaug.GaussianBlur(max_size=3)
@@ -317,16 +265,16 @@ def get_dataflow(anns_file, is_train ,augment=True):
         ds = PrefetchData(ds, 1000, multiprocessing.cpu_count() * 1)
     else:
         ds = MultiThreadMapData(ds, nr_thread=16, map_func=read_image_url, buffer_size=1000)
-        ds = MapDataComponent(ds, pose_resize_shortestedge_fixed)
-        ds = MapDataComponent(ds, pose_crop_center)
-        ds = MapData(ds, pose_to_img)
+        ds = MapDataComponent(ds, augmentor.pose_resize_shortestedge_fixed)
+        ds = MapDataComponent(ds, augmentor.pose_crop_center)
+        ds = MapData(ds, augmentor.pose_to_img)
         ds = PrefetchData(ds, 100, multiprocessing.cpu_count() // 4)
 
     return ds
 
-def get_dataflow_batch(anns_file, is_train, batchsize, augment=True):
+def get_dataflow_batch(anns_file, is_train, batchsize, augmentor, augment=True):
     logger.info('Dataflow anns_file=%s' % anns_file)
-    ds = get_dataflow(anns_file, is_train , augment=augment)
+    ds = get_dataflow(anns_file, is_train, augmentor=augmentor, augment=augment)
     ds = BatchData(ds, batchsize)
     return ds
 
@@ -398,34 +346,3 @@ class DataFlowToQueue(threading.Thread):
 
     def dequeue(self):
         return self.queue.dequeue()
-
-# if __name__ == '__main__':
-#     os.environ['CUDA_VISIBLE_DEVICES'] = ''
-
-#     from pose_augment import set_network_input_wh, set_network_scale
-#     # set_network_input_wh(368, 368)
-#     set_network_input_wh(480, 320)
-#     set_network_scale(8)
-
-#     # df = get_dataflow('/data/public/rw/coco/annotations', True, '/data/public/rw/coco/')
-#     df = _get_dataflow_onlyread('/data/public/rw/coco/annotations', True, '/data/public/rw/coco/')
-#     # df = get_dataflow('/root/coco/annotations', False, img_path='http://gpu-twg.kakaocdn.net/braincloud/COCO/')
-
-#     from tensorpack.dataflow.common import TestDataSpeed
-#     TestDataSpeed(df).start()
-#     sys.exit(0)
-
-#     with tf.Session() as sess:
-#         df.reset_state()
-#         t1 = time.time()
-#         for idx, dp in enumerate(df.get_data()):
-#             if idx == 0:
-#                 for d in dp:
-#                     logger.info('%d dp shape={}'.format(d.shape))
-#             print(time.time() - t1)
-#             t1 = time.time()
-#             BCToolPoseDataReader.display_image(dp[0], dp[1].astype(np.float32), dp[2].astype(np.float32))
-#             print(dp[1].shape, dp[2].shape)
-#             pass
-
-#     logger.info('done')

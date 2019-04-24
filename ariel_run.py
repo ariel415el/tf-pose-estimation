@@ -12,6 +12,7 @@ from tf_pose.networks import get_graph_path, model_wh
 import json
 import os
 from tf_pose.postProcess.python_paf_process import NUM_PART, NUM_HEATMAP
+from tf_pose.common import draw_humans
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='tf-pose-estimation run')
@@ -51,11 +52,12 @@ if __name__ == '__main__':
         coco_json[os.path.abspath(fpath)]["keypoint_sets"] = humans
 
         if args.debug_images:
-            debug_image = TfPoseEstimator.draw_humans(org_image, humans, imgcopy=False)
+            debug_image = draw_humans(org_image, humans, imgcopy=False)
             print("\tSaving image to: ",os.path.join(out_dir,fname))
             cv2.imwrite(os.path.join(out_dir, fname), debug_image)
 
     json_path =  os.path.join(os.path.dirname(args.images), "tf-openpose_%s_%s.json"%(model_name, args.resize))
+
     print("###########################")
     print("Saving json to: ",json_path)
     json.dump(coco_json, open(json_path, 'w'))

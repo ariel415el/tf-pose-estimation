@@ -11,11 +11,13 @@ import numpy as np
 import tensorflow as tf
 from tqdm import tqdm
 
-from tf_pose.pose_dataset import get_dataflow_batch, DataFlowToQueue, BCToolPoseDataReader
-from tf_pose.pose_augment import set_network_input_wh, set_network_scale
-from tf_pose.common import get_sample_images
-import tf_pose.common as common
-from tf_pose.networks import get_network
+from pose_dataset import get_dataflow_batch, DataFlowToQueue, BCToolPoseDataReader
+from pose_augment import PoseAugmentor
+
+from common import get_sample_images
+import common as common
+from networks import get_network
+from estimator import create_debug_collage
 
 logger = logging.getLogger('train')
 logger.handlers.clear()
@@ -59,13 +61,9 @@ if __name__ == '__main__':
     num_heatmaps = len(common.BC_parts)
     num_pafmaps = len(common.BC_pairs) * 2
     # define input placeholder
-    set_network_input_wh(args.input_width, args.input_height)
-    scale = 4
+    scale = 8
+    pose_augmentor = PoseAugmentor(args.input_width,args.input_height,scale)
 
-    if args.model in ['cmu', 'vgg'] or 'mobilenet' in args.model:
-        scale = 8
-
-    set_network_scale(scale)
     output_w, output_h = args.input_width // scale, args.input_height // scale
 
     logger.info('define model+')
@@ -73,14 +71,13 @@ if __name__ == '__main__':
         input_node = tf.placeholder(tf.float32, shape=(args.batchsize, args.input_height, args.input_width, 3), name='image')
         vectmap_node = tf.placeholder(tf.float32, shape=(args.batchsize, output_h, output_w, num_pafmaps), name='vectmap')
         heatmap_node = tf.placeholder(tf.float32, shape=(args.batchsize, output_h, output_w, num_heatmaps), name='heatmap')
-
         # prepare data
-        df = get_dataflow_batch(args.train_anns, True, args.batchsize, augment=args.no_augmentation)
+        df = get_dataflow_batch(args.train_anns, is_train=True, batchsize=args.batchsize, augmentor=pose_augmentor, augment=args.no_augmentation)
             # transfer inputs from ZMQ
         enqueuer = DataFlowToQueue(df, [input_node, heatmap_node, vectmap_node], queue_size=100)
         q_inp, q_heat, q_vect = enqueuer.dequeue()
 
-    df_valid = get_dataflow_batch(args.val_anns, False, args.batchsize, augment=False)
+    df_valid = get_dataflow_batch(args.val_anns, is_train=False, batchsize=args.batchsize, augmentor=pose_augmentor, augment=False)
     df_valid.reset_state()
     validation_cache = []
 
@@ -260,7 +257,6 @@ if __name__ == '__main__':
                 sess.run([update_ops])
                 sess.run([train_step, inc_gs_num])
                 gs_num = global_step.eval();
-
             if (gs_num > step_per_epoch * args.max_epoch) or (gs_num > args.max_iter):
                 break
 
@@ -325,7 +321,7 @@ if __name__ == '__main__':
                 test_results = []
 
                 for i in range(num_test_images):
-                    test_result = BCToolPoseDataReader.display_image(all_test_images[i], heatMat[i], pafMat[i], as_numpy=True)
+                    test_result = create_debug_collage(all_test_images[i], heatMat[i], pafMat[i], show_pose=True)
                     test_result = cv2.resize(test_result, (640, 640))
                     test_result = test_result.reshape([640, 640, 3]).astype(float)
                     test_results.append(test_result)
