@@ -55,7 +55,7 @@ class PoseEstimator:
                 else:
                     x = float(flat_info[c_idx]._peakX) / heat_mat.shape[1]
                     y = float(flat_info[c_idx]._peakY) / heat_mat.shape[0]
-                    score = 2 # flat_info[c_idx]._paekScore
+                    score = float(flat_info[c_idx]._paekScore)
                     human += [x, y, score]
 
 

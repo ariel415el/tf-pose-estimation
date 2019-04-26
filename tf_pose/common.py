@@ -92,11 +92,11 @@ def draw_humans(npimg, humans, imgcopy=False):
         # draw limbs
         for sk in sks:
             if np.all(v[sk] > 0):
-                center_1 = (x[sk[0]],y[sk[0]])
-                center_0 = (x[sk[1]],y[sk[1]])
+                center_1 = (int(x[sk[0]] + 0.5), int(y[sk[0]] + 0.5))
+                center_0 = (int(x[sk[1]] + 0.5), int(y[sk[1]] + 0.5))
                 cv2.line(npimg, center_0, center_1, random_color, 3)
         for i in range(BC_parts.Background.value):
             if v[i] > 0:
-                cv2.circle(npimg, (x[i], y[i]), 3, [0,0,0], thickness=3, lineType=8, shift=0)
+                cv2.circle(npimg, (int(x[i] + 0.5), int(y[i] + 0.5)), 3, [0,0,0], thickness=3, lineType=8, shift=0)
 
     return npimg
