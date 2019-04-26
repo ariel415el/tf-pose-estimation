@@ -1,8 +1,11 @@
 import argparse
 import logging
 import os
+import sys
 
 import tensorflow as tf
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)),".."))
+sys.path.insert(0,parent_dir)
 from tf_pose.networks import get_network, model_wh, _get_base_path
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')

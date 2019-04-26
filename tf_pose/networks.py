@@ -5,7 +5,7 @@ import tensorflow as tf
 from tf_pose.network_mobilenet import MobilenetNetwork
 from tf_pose.network_mobilenet_thin import MobilenetNetworkThin
 from tf_pose.network_mobilenet_new import MobilenetNetworkNew
-
+from tf_pose.common import BC_parts, BC_pairs
 from tf_pose.network_cmu import CmuNetwork
 from tf_pose.network_mobilenet_v2 import Mobilenetv2Network
 
@@ -20,7 +20,7 @@ def _get_base_path():
     # return os.environ.get('OPENPOSE_MODEL')
 
 
-def get_network(type, placeholder_input, sess_for_load=None, trainable=True, numHeatMaps=15, numPafMaps=26):
+def get_network(type, placeholder_input, sess_for_load=None, trainable=True, numHeatMaps=len(BC_parts), numPafMaps=2*len(BC_pairs)):
     if type == 'mobilenet':
         net = MobilenetNetwork({'image': placeholder_input}, conv_width=0.75, conv_width2=1.00, trainable=trainable)
         pretrain_path = 'pretrained/mobilenet_v1_0.75_224_2017_06_14/mobilenet_v1_0.75_224.ckpt'
