@@ -75,7 +75,7 @@ echo ++++++++++++++++++++++++++++++++++++++
 echo ++++++++++ Test model  +++++++++++++++
 echo ++++++++++++++++++++++++++++++++++++++
 MODEL_NAME="${NEW_MODEL_NAME}"
-IMAGE_DIR="${TF_DIR}"/2_images
+IMAGE_DIR="${TF_DIR}"/images
 python3 "${TF_DIR}"/ariel_run.py --images "${IMAGE_DIR}" --model "${NEW_DIR}/${MODEL_NAME}".pb  --resize "${WIDTH}"x"${HEIGHT}" --in_name image:0 --out_name "${OUT_LAYER}":0 --debug_images
 mv "${TF_DIR}"/tf-openpose_"${MODEL_NAME}".json "${NEW_DIR}"/tf-openpose_"${MODEL_NAME}".json
 # python3 "${TF_DIR}"/tools/vis/create_debug_images.py  "${TF_DIR}"/images "${NEW_DIR}"/tf-openpose_"${MODEL_NAME}".json

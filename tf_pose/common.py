@@ -2,6 +2,10 @@ from enum import Enum
 import tensorflow as tf
 import cv2
 import numpy as np
+import json
+import os
+import matplotlib.pyplot as plt
+
 regularizer_conv = 0.004
 regularizer_dsconv = 0.0004
 batchnorm_fused = True
@@ -34,15 +38,28 @@ def read_imgfile(path, width=None, height=None):
     return val_image
 
 
-def get_sample_images(w, h):
-    import os
-    val_image = []
-    images_dir_path = os.path.dirname(os.path.realpath(__file__)) + "/../images"
-    if not os.path.exists(images_dir_path):
-            images_dir_path = "./images"   
-    for fname in os.listdir(images_dir_path):
-        val_image += [read_imgfile(os.path.join(images_dir_path, fname), w, h)]
-    return val_image
+def get_sample_images(anns_path, w, h):
+    anns = json.load(open(anns_path))
+
+    resized_anns = []
+    resized_images = []
+    for k in anns:
+        image = cv2.imread(k, cv2.IMREAD_COLOR)
+        resized_images += [cv2.resize(image, (w, h))]
+
+        x_factor = w / image.shape[1]
+        y_factor = h / image.shape[0]
+        resized_sets = []
+        for ref_set in anns[k]['keypoint_sets']:
+            new_set = ref_set.copy()
+            new_set[::3]  = [x*x_factor for x in ref_set[::3]]
+            new_set[1::3] = [y * y_factor for y in ref_set[1::3]]
+            if new_set != [] and np.sum(new_set[::3]) != 0 and np.sum(new_set[1::3]) != 0:
+                resized_sets += [new_set]
+        resized_anns += [resized_sets]
+
+    anns = [anns[k]['keypoint_sets'] for k in anns]
+    return resized_images, resized_anns
 
 
 def to_str(s):
@@ -74,7 +91,7 @@ def prepare_heatmaps(raw_heatmap, raw_vectmap, upsample=4):
     return peaksMap, upscaled_heatmap, upscaled_vectmaps
 
 
-def draw_humans(npimg, humans, imgcopy=False):
+def draw_humans(npimg, humans, color=None, imgcopy=False):
     if imgcopy:
         npimg = np.copy(npimg)
     image_h, image_w = npimg.shape[:2]
@@ -87,16 +104,33 @@ def draw_humans(npimg, humans, imgcopy=False):
         # draw point
         x = kp[0::3]
         y = kp[1::3]
-        v = kp[2::3]
-        random_color = list(np.random.rand(1,3)[0]*255)
+        v = np.array(kp[2::3])
+        if color is not None:
+         person_color = color
+        else:
+            person_color = list(np.random.rand(1,3)[0]*255)
         # draw limbs
         for sk in sks:
             if np.all(v[sk] > 0):
                 center_1 = (int(x[sk[0]] + 0.5), int(y[sk[0]] + 0.5))
                 center_0 = (int(x[sk[1]] + 0.5), int(y[sk[1]] + 0.5))
-                cv2.line(npimg, center_0, center_1, random_color, 3)
+                cv2.line(npimg, center_0, center_1, person_color, 2)
         for i in range(BC_parts.Background.value):
             if v[i] > 0:
-                cv2.circle(npimg, (int(x[i] + 0.5), int(y[i] + 0.5)), 3, [0,0,0], thickness=3, lineType=8, shift=0)
+                cv2.circle(npimg, (int(x[i] + 0.5), int(y[i] + 0.5)), 1, [0,0,0], thickness=1, lineType=4, shift=0)
 
     return npimg
+
+def plot_from_csv(input_path, output_path, plotees):
+    from itertools import cycle
+    cycol = cycle('bgrcmk')
+
+    import pandas as pd
+    pd = pd.read_csv(input_path)
+    step_nums = np.array(pd['Step_number'])
+    for data_name in plotees:
+        plt.plot(step_nums,  np.array(pd[data_name]), label=data_name, c=next(cycol))
+    plt.xlabel('Step_number')
+    plt.legend(loc='upper left')
+    plt.savefig(output_path)
+    plt.close()

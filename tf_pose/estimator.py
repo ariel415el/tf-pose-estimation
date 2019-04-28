@@ -7,12 +7,16 @@ import cv2
 import numpy as np
 import tensorflow as tf
 import time
-
-from tf_pose import common
-from tf_pose.common import BC_pairs
-from tf_pose.tensblur.smoother import Smoother
-from tf_pose.postProcess  import python_paf_process
-from tf_pose.postProcess.python_paf_process import NUM_PART, NUM_HEATMAP
+import sys
+import common
+from common import BC_pairs
+from tensblur.smoother import Smoother
+from postProcess  import python_paf_process
+from postProcess.python_paf_process import NUM_PART, NUM_HEATMAP
+import matplotlib.pyplot as plt
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+sys.path.insert(0, parent_dir)
+from evaluation.BCEvaluation import filter_anns, computeOks
 
 def _round(v):
     return int(round(v))
@@ -170,18 +174,14 @@ class TfPoseEstimator:
         return humans
 
 
-def create_debug_collage(inp, heatmap, vectmap, show_pose=False):
+def create_debug_collage(inp, upscaled_heatmap, upscaled_vectmaps, humans=None):
     global mplset
     mplset = True
-    import matplotlib.pyplot as plt
 
     fig = plt.figure()
     a = fig.add_subplot(2, 2, 1)
     a.set_title('Image')
-    peaksMap, upscaled_heatmap, upscaled_vectmaps = common.prepare_heatmaps(heatmap, vectmap, upsample=4)
-    if show_pose:
-        humans = PoseEstimator.estimate_paf(peaksMap, upscaled_heatmap, upscaled_vectmaps)
-        humans = fit_humans_to_size(humans,inp.shape[1],inp.shape[0])
+    if humans:
         debug_image = common.draw_humans(inp, humans, imgcopy=True)
         plt.imshow(debug_image)
     else:
@@ -216,3 +216,54 @@ def create_debug_collage(inp, heatmap, vectmap, show_pose=False):
     fig.clear()
     plt.close()
     return data
+
+
+def evaluate_results(images, list_heatmaps, list_pafmaps, list_gt_keypoint_sets):
+    iou_threshold = 0.65
+    tps = 0
+    gts = 0
+    dts = 0
+    collages = []
+    accuracy_images = []
+    for i in range(len(images)):
+        image = common.get_bgimg(images[i]).copy()
+        peaksMap, upscaled_heatmap, upscaled_vectmaps = common.prepare_heatmaps(list_heatmaps[i], list_pafmaps[i], upsample=4)
+        humans = PoseEstimator.estimate_paf(peaksMap, upscaled_heatmap, upscaled_vectmaps)
+        humans = fit_humans_to_size(humans, image.shape[1], image.shape[0])
+
+        debgug_collage = create_debug_collage(image, upscaled_heatmap, upscaled_vectmaps, humans)
+
+        debgug_collage = cv2.resize(debgug_collage, (640, 640))
+        debgug_collage = debgug_collage.reshape([640, 640, 3]).astype(float)
+        collages += [debgug_collage]
+
+
+        clean_humans, _  = filter_anns(humans, vis_th=0.5, min_kps=3, min_height=40, ignore_head=False)
+        common.draw_humans(image, np.array(list_gt_keypoint_sets[i]), color=[0, 255, 0])
+        common.draw_humans(image, clean_humans, color=[255, 0, 0])
+        dts += len(clean_humans)
+        gts += len(list_gt_keypoint_sets[i])
+        if len(clean_humans) > 0 and len(list_gt_keypoint_sets[i]) > 0:
+            ious = computeOks(np.array(list_gt_keypoint_sets[i]), clean_humans).transpose()  # this is a (gt)x(det) matrices of ious
+            first_matches_idxs = np.argmax(ious, axis=1)  # best det for each gt
+            first_matches_vals = ious[np.arange(ious.shape[0]), first_matches_idxs]
+            valid_matches_indices = np.where(first_matches_vals > iou_threshold)[0]  # best det for each gt
+            tps += len(valid_matches_indices)
+            cv2.putText(image,"TPs: %d"%len(valid_matches_indices), (10,30), cv2.FONT_HERSHEY_PLAIN, 2, 255)    
+            cv2.putText(image,"GTs: %d"%len(list_gt_keypoint_sets[i]), (10,60), cv2.FONT_HERSHEY_PLAIN, 2, 2555)   
+            common.draw_humans(image, np.array(list_gt_keypoint_sets[i]), color=[0, 255, 0])
+            common.draw_humans(image, clean_humans, color=[255, 0, 0])
+
+        accuracy_images += [image.astype(np.float32)]
+
+    # Compute recall precision
+    if gts == 0:
+        recall = 1
+    else:
+        recall = min(1, max(0, tps / float(gts)))
+    if dts == 0 :
+        precision = 1
+    else:
+        precision = min(1, max(0, tps / float(dts))) # tps may be larger than dets
+
+    return recall, precision, collages, accuracy_images

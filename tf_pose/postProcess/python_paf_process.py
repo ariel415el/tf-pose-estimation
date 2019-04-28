@@ -1,6 +1,10 @@
 import math
 import numpy as np
-
+import sys
+import os
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+sys.path.insert(0, parent_dir)
+from common import BC_pairs as BC_PAIRS
 THRESH_HEAT = 0.05
 THRESH_VECTOR_SCORE = 0.05
 THRESH_VECTOR_CNT1 = 6 # How many out of the STEP_PAF samples should be Good
@@ -10,7 +14,6 @@ NUM_PART = 14
 NUM_HEATMAP = NUM_PART + 1
 STEP_PAF = 10
 NUM_BC_PAIRS = 13
-from tf_pose.common import BC_pairs as BC_PAIRS
 
 def roundpaf(num):
     return int(num + 0.5)

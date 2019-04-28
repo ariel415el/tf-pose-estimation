@@ -1,19 +1,19 @@
 import skimage.io as io
 import sys, os
-import matplotlib.pyplot as plt
 import json
-import random
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.collections import PatchCollection
-from matplotlib.patches import Polygon
 import argparse
 import time
+import cv2
+
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+sys.path.insert(0,parent_dir)
+from tf_pose.common import draw_humans
+
 ## Draw anns on plt figure
 def draw(anns,color,alpha=0.5,label='NA'):
     sks = np.array([(0,1),(1,2),(1,3), (2,4),(4,6), (3,5),(5,7), (1,8),(8,10),(10,12), (1,9),(9,11),(11,13)])
-    colors = [color]
-    polygons = [] 
     first_plot = True
     for kp in np.array(anns):
         x = kp[0::3]
@@ -33,7 +33,7 @@ def draw(anns,color,alpha=0.5,label='NA'):
 def computeOks(gt_kps, det_kps):
     # dimention here should be Nxm
     if len(gt_kps) == 0 or len(det_kps) == 0:
-        return []
+        return np.array([])
 
     ious = np.zeros((len(gt_kps), len(det_kps)))
     sigmas = np.array([2.0, 2.0, .79, .79, .72, .72, .62,.62, 1.07, 1.07, .87, .87, .89, .89])/10.0
@@ -59,29 +59,14 @@ def computeOks(gt_kps, det_kps):
 
     return ious
 
-## gather all the annotations of each imagse under the same dict entry
-def create_name_2_kps_dict(anns):
-    name_2_kps = {}
-    for e in anns:
-        if "file_name" not in e:
-            fname = os.path.splitext(str(e['image_id']))[0].zfill(12) + ".jpg"
-        else:
-            fname = e["file_name"] 
-        if fname not in name_2_kps:
-            name_2_kps[fname]=[]
-        name_2_kps[fname].append(np.array(e['keypoints']))
-
-    # TODO: handle crowed and ignore gt
-    return name_2_kps
-
 # Returns a  version of the input annotations filtered by the given thrsholds
-def filter_anns(anns, vis_th, min_kps, min_height, ignore_face=False):
+def filter_anns(anns, vis_th, min_kps, min_height, ignore_head=False):
     new_anns = []
     invalid_anns = []
     for ann in anns:
         ann_copy = np.array(ann, copy=True)
-        if ignore_face:
-            ann_copy[2::3][0:5] = 0
+        if ignore_head:
+            ann_copy[2] = 0 # drop visibility of first kp, middle head
         ann_copy[2::3][ann_copy[2::3] < vis_th] = 0
         y_vals = ann_copy[1::3]
         bbox_height = max(y_vals) - min(y_vals)
@@ -93,26 +78,22 @@ def filter_anns(anns, vis_th, min_kps, min_height, ignore_face=False):
     return np.array(new_anns), np.array(invalid_anns)
 
 ## Compute recal and precision values for the given thresholds
-def evaluate(gt_kps, det_kps, iou_threshold, images_dir=None, debug_dir=None, invalid_gts=None, invalid_dts=None, debug_vis_th=-1.0):
+def evaluate(gt_kps, det_kps, iou_threshold, debug_dir=None, invalid_gts=None, invalid_dts=None, debug_vis_th=-1.0):
     fps = 0
     tps = 0
     gts = 0
     dts = 0
     t = time.time()
     # Create debug foldr
-    if debug_dir is not None and images_dir is not None:
-        out_dir = os.path.join(debug_dir,"debug-th_%f"%debug_vis_th)
-        if not os.path.exists(out_dir):
-            os.makedirs(out_dir)
     # For each Gt compute similarity to all detections 
-    for i, image_name in enumerate(gt_kps):
-        gt = gt_kps[image_name]['keypoint_sets']
+    for i, image_path in enumerate(gt_kps):
+        gt = gt_kps[image_path]
         if len(gt) == 0:
             continue
         gts += len(gt)
-        if image_name in det_kps:
-            dt = det_kps[image_name]['keypoint_sets']
-            if len(dt) ==0:
+        if image_path in det_kps:
+            dt = det_kps[image_path]
+            if len(dt) == 0:
                 continue
             dts += len(dt)  
 
@@ -124,30 +105,23 @@ def evaluate(gt_kps, det_kps, iou_threshold, images_dir=None, debug_dir=None, in
             valid_matches_indices = np.where(first_matches_vals > iou_threshold)[0] # best det for each gt
             tps += len(valid_matches_indices)
 
-            if debug_dir is not None and images_dir is not None:
-                fname = os.path.join(images_dir, image_name)
-                I = io.imread(fname)
-                plt.imshow(I)
-                plt.axis('off')
-                plt.title('iou_th:%f;vis_th:%f\nmin_kps: %f;min_height:%d\n tp:m %d #gt: %d #dt: %d'%
-                            (iou_threshold,
-                            debug_vis_th,
-                            args.min_kps,
-                            args.min_bbox_height,
-                            len(valid_matches_indices),
-                            len(gt),
-                            len(dt)))
-                ax = plt.gca()
-                # ax.set_autoscale_on(False)
-                draw(dt,'r',alpha=0.8,label="Detection")
-                draw(gt,'b',alpha=0.4,label='GT')
-                # if invalid_dts is not None and image_name in invalid_gts:
-                #     draw(invalid_dts[image_name],'g',alpha=0.2,label="invalid_dets")
-                # if invalid_gts is not None and image_name in invalid_dts :
-                #     draw(invalid_gts[image_name],'m',alpha=0.2, label='invalid_gt')
-                plt.legend()
-                plt.savefig(os.path.join(out_dir, image_name))
-                plt.clf()
+            if debug_dir is not None:
+                out_dir = os.path.join(debug_dir, "debug-th_%f" % debug_vis_th)
+                if not os.path.exists(out_dir):
+                    os.makedirs(out_dir)
+                im = cv2.cvtColor(cv2.imread(image_path), cv2.COLOR_BGR2RGB)
+                draw_humans(im, gt,color=[0,255,0])
+                draw_humans(im, dt,color=[255,0,0])
+
+                details = np.zeros((im.shape[0],100,3))
+                # title = 'iou_th:%f;vis_th:%f\nmin_kps: %f;min_height:%d\n tp:m %d #gt: %d #dt: %d'% \
+                # (iou_threshold, debug_vis_th, args.min_kps, args.min_bbox_height, len(valid_matches_indices), len(gt), len(dt))
+                #cv2.putText(details, title, (10, 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
+                cv2.putText(details, "Red: Detections | Green: GT", (20, 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
+                im = np.hstack((im.astype(float), details))
+                plt.imshow(im)
+                plt.show()
+
     # Compute recall precision
     if gts == 0:
         recall = 1 
@@ -162,28 +136,29 @@ def evaluate(gt_kps, det_kps, iou_threshold, images_dir=None, debug_dir=None, in
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--images_dir', required=True)
     parser.add_argument('--gt_file', required=True)
     parser.add_argument('--det_file', required=True)
     parser.add_argument('--iou_th',type=int, default=0.4)
     parser.add_argument('--gt_fixed_vis_th',type=int, default=2) # relevant if gt has varying visibilities (Alphapose) or vis is in other range (coco { 0,1,2 })
     parser.add_argument('--min_kps',type=int, default=3) 
     parser.add_argument('--min_bbox_height',type=int, default=150)
-    parser.add_argument('--ignore_face',action='store_true')
+    parser.add_argument('--ignore_head',action='store_true')
     args = parser.parse_args()
 
     # load annotations
     gt_anns=json.load(open(args.gt_file))
     det_anns=json.load(open(args.det_file))
+    gt_anns = {path:  gt_anns[path]['keypoint_sets'] for path in gt_anns}
+    det_anns = {path: det_anns[path]['keypoint_sets'] for path in det_anns}
 
     # Clean invalid GTs
     gt_invalid_anns = {}
     for im_name in gt_anns:
-        gt_anns[im_name]['keypoint_sets'], gt_invalid_anns[im_name] = filter_anns(gt_anns[im_name]['keypoint_sets'],
+        gt_anns[im_name], gt_invalid_anns[im_name] = filter_anns(gt_anns[im_name],
                                                                     vis_th=args.gt_fixed_vis_th,
                                                                     min_kps=args.min_kps,
                                                                     min_height=args.min_bbox_height,
-                                                                    ignore_face=args.ignore_face)
+                                                                    ignore_head=args.ignore_head)
     
     # Iterate over vis threshoulds and compute R/P
     recall_vals=[] 
@@ -194,15 +169,14 @@ if __name__ == '__main__':
         det_invalid_anns = {}
         detections_copy = det_anns.copy()
         for im_name in detections_copy:
-            detections_copy[im_name]['keypoint_sets'], det_invalid_anns[im_name] = filter_anns(detections_copy[im_name]['keypoint_sets'],
+            detections_copy[im_name], det_invalid_anns[im_name] = filter_anns(detections_copy[im_name],
                                                                                 vis_th=th,
                                                                                 min_kps=args.min_kps,
                                                                                 min_height=args.min_bbox_height,
-                                                                                ignore_face=args.ignore_face)
+                                                                                ignore_head=args.ignore_head)
         recall, precision = evaluate(gt_anns,
                                 detections_copy,
                                 args.iou_th,
-                                images_dir=args.images_dir,
                                 debug_dir=os.path.dirname(args.det_file) if (abs(th-0.6) < 0.01 )  else None,
                                 invalid_gts=gt_invalid_anns,
                                 invalid_dts=det_invalid_anns,

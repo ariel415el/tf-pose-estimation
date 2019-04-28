@@ -29,7 +29,7 @@ from tensorpack.dataflow.base import RNGDataFlow, DataFlowTerminated
 
 from pose_augment import PoseAugmentor
 import common
-from tf_pose.estimator import PoseEstimator
+from estimator import PoseEstimator
 from numba import jit
 import json 
 
@@ -82,6 +82,7 @@ class DatasetMetaData:
             ys = ann[1::3]
             vs = ann[2::3]
 
+            # TODO:  shouldnt it be  v >= 2 ??
             joints = [(x, y) if v >= 1 else (-1000, -1000) for x, y, v in zip(xs, ys, vs)] 
             joints += [(-1000, -1000)]  # background
             skeletons.append(joints)

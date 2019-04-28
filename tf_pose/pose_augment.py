@@ -4,7 +4,7 @@ import random
 import cv2
 import numpy as np
 from tensorpack.dataflow.imgaug.geometry import RotationAndCropValid
-import tf_pose.common as common
+import common as common
 
 class PoseAugmentor:
     def __init__(self, network_w, network_h, scale):
@@ -239,7 +239,6 @@ class PoseAugmentor:
         qy += oy - new_y
 
         return int(qx + 0.5), int(qy + 0.5)
-
 
     def pose_to_img(self, meta_l):
         return [
