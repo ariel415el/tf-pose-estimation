@@ -1,3 +1,4 @@
+#!/opt/conda/bin/python3
 import matplotlib as mpl
 mpl.use('Agg')      # training mode, no screen should be open. (It will block training loop)
 
@@ -17,7 +18,8 @@ from pose_augment import PoseAugmentor
 from common import get_sample_images
 import common as common
 from networks import get_network
-from estimator import evaluate_results, create_debug_collage, PoseEstimator, fit_humans_to_size
+from estimator import evaluate_results, PoseEstimator, fit_humans_to_size
+import debug_tools
 
 logger = logging.getLogger('train')
 logger.handlers.clear()
@@ -31,21 +33,21 @@ logger.addHandler(ch)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Training codes for Openpose using Tensorflow')
-    parser.add_argument('--model', default='vgg', help='model name')
+    parser.add_argument('--model', default='mobilenet_thin', help='model name')
     parser.add_argument('--freeze_backbone', action='store_true')
-    parser.add_argument('--no_augmentation', action='store_false')
+    parser.add_argument('--augment_data', action='store_false')
     parser.add_argument('--input-width', type=int, default=432)
     parser.add_argument('--input-height', type=int, default=368)
     parser.add_argument('--checkpoint', type=str, default='')
 
     parser.add_argument('--val_anns', type=str)
     parser.add_argument('--train_anns', type=str)
-    parser.add_argument('--visual_val_anns', type=str, default='./test/anns.json')
     parser.add_argument('--limit_val_images', type=int, default=5000)
+    parser.add_argument('--visual_val_samples', type=int, default=30)
 
     parser.add_argument('--batchsize', type=int, default=16)
     parser.add_argument('--virtual_batch', type=int, default=1)
-    parser.add_argument('--lr', type=str, default='0.0001')
+    parser.add_argument('--lr', type=str, default='0.01')
     parser.add_argument('--decay_steps', type=int, default=10000)
     parser.add_argument('--decay_rate', type=float, default=0.33)
 
@@ -68,7 +70,7 @@ if __name__ == '__main__':
     pose_augmentor = PoseAugmentor(args.input_width,args.input_height, scale)
     output_w, output_h = args.input_width // scale, args.input_height // scale
 
-    all_test_images, all_test_anns = get_sample_images(args.visual_val_anns, args.input_width, args.input_height)
+    vis_val_subsample_images, vis_val_subsample_anns = get_sample_images(args.val_anns, args.input_width, args.input_height, max(args.visual_val_samples,args.batchsize))
 
     logger.info('define model+')
     with tf.device(tf.DeviceSpec(device_type="CPU")):
@@ -76,7 +78,7 @@ if __name__ == '__main__':
         vectmap_node = tf.placeholder(tf.float32, shape=(args.batchsize, output_h, output_w, num_pafmaps), name='vectmap')
         heatmap_node = tf.placeholder(tf.float32, shape=(args.batchsize, output_h, output_w, num_heatmaps), name='heatmap')
         # prepare data
-        df = get_dataflow_batch(args.train_anns, is_train=True, batchsize=args.batchsize, augmentor=pose_augmentor, augment=args.no_augmentation)
+        df = get_dataflow_batch(args.train_anns, is_train=True, batchsize=args.batchsize, augmentor=pose_augmentor, augment=args.augment_data)
             # transfer inputs from ZMQ
         enqueuer = DataFlowToQueue(df, [input_node, heatmap_node, vectmap_node], queue_size=100)
         q_inp, q_heat, q_vect = enqueuer.dequeue()
@@ -147,12 +149,12 @@ if __name__ == '__main__':
         # define optimizer
         num_train_images = df.size() * args.batchsize # df is a batched dataflow
         num_val_images = df_valid.size() * args.batchsize
-        num_test_images = (len(all_test_images) // args.batchsize) * args.batchsize
+        num_test_images = (len(vis_val_subsample_images) // args.batchsize) * args.batchsize
         step_per_epoch = num_train_images // virtual_batch_size
         logger.debug("### Virtual batch size is %d"%virtual_batch_size)
         logger.debug("### Num train images: %d"%num_train_images)
         logger.debug("### Num val images: %d"%num_val_images)
-        logger.debug('### Num test image: %d/%d' % (num_test_images, len(all_test_images)))
+        logger.debug('### Num test image: %d/%d' % (num_test_images, len(vis_val_subsample_images)))
         logger.debug("### Steps per epoch: %d"%step_per_epoch)
         global_step = tf.Variable(0, trainable=False)
 
@@ -251,9 +253,9 @@ if __name__ == '__main__':
             if not os.path.exists(model_dir):
                 os.makedirs(model_dir)
 
-        train_file = open(os.path.join(debug_dir, "train_file.csv"), "w+")
-        val_file = open(os.path.join(debug_dir, "val_file.csv"), "w+")
-        accuracy_file = open(os.path.join(debug_dir, "acc_file.csv"), "w+")
+        train_file = open(os.path.join(debug_dir, "train_file.csv"), "w")
+        val_file = open(os.path.join(debug_dir, "val_file.csv"), "w")
+        accuracy_file = open(os.path.join(debug_dir, "acc_file.csv"), "w")
         train_file.write("Step_number,loss,loss_last_hm,loss_last_pm,lr_val,queue_size\n")
         val_file.write("Step_number,loss,loss_last_hm,loss_last_pm\n")
         accuracy_file.write("Step_number,recall,percision\n")
@@ -274,7 +276,7 @@ if __name__ == '__main__':
             if (gs_num > step_per_epoch * args.max_epoch) or (gs_num > args.max_iter):
                 break
 
-            if gs_num - last_gs_num >= 50:
+            if gs_num - last_gs_num >= 30:
                 train_loss, train_loss_last_paf, train_loss_last_hm, lr_val, queue_size, summary = sess.run([
                     total_loss, loss_last_paf, loss_last_hm, learning_rate, enqueuer.size(), merged_train_summary_op
                 ])
@@ -282,7 +284,7 @@ if __name__ == '__main__':
                 file_writer.flush()
                 train_file.write("%d,%f,%f,%f,%d,%d\n"%(gs_num, train_loss, train_loss_last_hm, train_loss_last_paf, lr_val, queue_size))
                 train_file.flush()
-                common.plot_from_csv(os.path.join(debug_dir, "train_file.csv"),os.path.join(debug_dir, "train_plot.png"),  ["loss", "loss_last_hm", "loss_last_pm"])
+                debug_tools.plot_from_csv(os.path.join(debug_dir, "train_file.csv"),os.path.join(debug_dir, "train_plot.png"),  ["loss", "loss_last_hm", "loss_last_pm"])
 
                 # log of training loss / accuracy
                 batch_per_sec = (gs_num - initial_gs_num) / (time.time() - time_started)
@@ -291,8 +293,7 @@ if __name__ == '__main__':
                             % (gs_num / step_per_epoch, gs_num, ex_per_sec, lr_val, train_loss))
                 last_gs_num = gs_num
 
-
-            if gs_num - last_gs_num2 >= 100:
+            if gs_num - last_gs_num2 >= 60:
                 # save weights
                 saver.save(sess, os.path.join(model_dir, 'model'), global_step=global_step)
 
@@ -329,34 +330,41 @@ if __name__ == '__main__':
                 # save validation summary
                 val_file.write("%d,%f,%f,%f\n"%(gs_num, average_loss / total_cnt, average_loss_last_hm / total_cnt, average_loss_last_paf / total_cnt))
                 val_file.flush()
-                common.plot_from_csv(os.path.join(debug_dir, "val_file.csv"), os.path.join(debug_dir, "val_plot.png"), ["loss", "loss_last_hm", "loss_last_pm"])
+                debug_tools.plot_from_csv(os.path.join(debug_dir, "val_file.csv"), os.path.join(debug_dir, "val_plot.png"), ["loss", "loss_last_hm", "loss_last_pm"])
 
-            if gs_num - last_gs_num3 >= 150:
+            if gs_num - last_gs_num3 >= 90 and args.visual_val_samples > 0:
 
+                last_gs_num3 = gs_num
                 test_start = time.time()
                 # Test accuracy, and debug images
                 outputMaps = []
                 # assumes more test images than batch size
-                for i in range(len(all_test_images) // args.batchsize) :
+                for i in tqdm(range(len(vis_val_subsample_images) // args.batchsize)):
                     idx = i*args.batchsize
-                    chunk_images = all_test_images[idx:idx+args.batchsize]
-                    outputMat = sess.run(
+                    chunk_images = vis_val_subsample_images[idx:idx+args.batchsize]
+                    batch_output = sess.run(
                         outputs,
                         feed_dict={q_inp: np.array(chunk_images)}
                     )
-                    outputMaps += [outputMat]
-                outputMat = np.concatenate(outputMaps, axis=0)
+                    outputMaps += [batch_output]
+                vis_val_subsample_images, vis_val_subsample_anns = get_sample_images(args.val_anns,args.input_width, args.input_height, max(args.visual_val_samples, args.batchsize))
+                try:
+                    outputMat = np.concatenate(outputMaps, axis=0)
+                except:
+                    print("Skipping visual validation due to an error")
+                    continue
                 pafMat, heatMat = outputMat[:, :, :, num_heatmaps:], outputMat[:, :, :, :num_heatmaps]
 
-                gt_anns = all_test_anns[:(i+1)*args.batchsize]
+                gt_anns = vis_val_subsample_anns[:(i+1)*args.batchsize]
                 assert(num_test_images == len(gt_anns) == heatMat.shape[0])
-                recall, precision, collages_images, acc_images = evaluate_results(all_test_images,
+                logger.info("evaluate_results on  %d images"%((i+1)*args.batchsize))
+                recall, precision, collages_images, acc_images = evaluate_results(vis_val_subsample_images[:(i+1)*args.batchsize],
                                                                                 heatMat,
                                                                                 pafMat,
-                                                                                all_test_anns)
+                                                                                gt_anns)
                 accuracy_file.write("%d,%f,%f\n"%(gs_num, recall, precision))
                 accuracy_file.flush()
-                common.plot_from_csv(os.path.join(debug_dir, "acc_file.csv"), os.path.join(debug_dir, "acc_plot.png"), ["recall", "percision"])
+                debug_tools.plot_from_csv(os.path.join(debug_dir, "acc_file.csv"), os.path.join(debug_dir, "acc_plot.png"), ["recall", "percision"])
 
                 output_dir = os.path.join(debug_dir, 'visual-val_step_%d_recall_%f_precision_%f'%(gs_num, recall, precision))
                 if not os.path.exists(output_dir):
@@ -366,7 +374,6 @@ if __name__ == '__main__':
                     cv2.imwrite(os.path.join(output_dir, "accuracy_%d.png"%idx),  cv2.cvtColor(acc_images[idx].astype(np.float32), cv2.COLOR_RGB2BGR))
 
                 logger.info('Test total time. %f' % (time.time() - test_start))
-                last_gs_num3 = gs_num
 
         train_file.close()
         val_file.close()

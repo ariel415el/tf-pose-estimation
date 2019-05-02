@@ -1,18 +1,11 @@
 import argparse
-import logging
-import sys
-import time
-
-from tf_pose import common
 import cv2
 import numpy as np
 from tf_pose.estimator import TfPoseEstimator
-from tf_pose.networks import get_graph_path, model_wh
-
+from tf_pose.networks import model_wh
 import json
 import os
-from tf_pose.postProcess.python_paf_process import NUM_PART, NUM_HEATMAP
-from tf_pose.common import draw_humans
+from tf_pose.debug_tools import draw_humans
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='tf-pose-estimation run')

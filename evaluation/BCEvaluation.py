@@ -9,24 +9,8 @@ import cv2
 
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 sys.path.insert(0,parent_dir)
-from tf_pose.common import draw_humans
+from tf_pose.debug_tools import draw_humans
 
-## Draw anns on plt figure
-def draw(anns,color,alpha=0.5,label='NA'):
-    sks = np.array([(0,1),(1,2),(1,3), (2,4),(4,6), (3,5),(5,7), (1,8),(8,10),(10,12), (1,9),(9,11),(11,13)])
-    first_plot = True
-    for kp in np.array(anns):
-        x = kp[0::3]
-        y = kp[1::3]
-        v = kp[2::3]
-        for sk in sks:
-            if np.all(v[sk]>0):
-                plt.plot(x[sk],y[sk], linewidth=2, color=color,alpha=alpha)
-        if first_plot:
-            plt.scatter(x[v>0], y[v>0],color=color,alpha=alpha,s=3,label=label)
-        else:
-            plt.scatter(x[v>0], y[v>0],color=color,alpha=alpha,s=3)
-        first_plot = False
 
 ## Taken from pycocotools
 ## Compute OKS betaween each Det to each gt skeketon
@@ -42,20 +26,25 @@ def computeOks(gt_kps, det_kps):
     # compute oks between each detection and ground truth object
     for j, gt in enumerate(gt_kps):
         # create bounds for ignore regions(double the gt bbox)
-        xg = gt[0::3]; yg = gt[1::3]; vg = gt[2::3]
-        bb_w = max(xg) - min(xg);
-        bb_h = max(yg) - min(yg);
+        xg = gt[0::3]
+        yg = gt[1::3]
+        vg = gt[2::3]
+        bb_w = max(xg) - min(xg)
+        bb_h = max(yg) - min(yg)
         for i, dt in enumerate(det_kps):
-            xd = dt[0::3]; yd = dt[1::3]; vd = dt[2::3]
+            xd = dt[0::3]
+            yd = dt[1::3]
+            vd = dt[2::3]
             # measure the per-keypoint distance if keypoints visible
             dx = xd - xg
             dy = yd - yg
             size_factor = bb_w*bb_h/2
-            e = (dx**2 + dy**2) / (vars * size_factor * 2  +np.spacing(1))
+            e = (dx**2 + dy**2) / (vars * size_factor * 2 + np.spacing(1))
+            normalize_by = e.shape[0]
             e=e[(vg > 0) & (vd > 0)]
             if e.shape[0] > 0:
                 exp = np.exp(-e)
-                ious[j, i] = np.sum(exp) / e.shape[0]
+                ious[j, i] = np.sum(exp) / normalize_by
 
     return ious
 

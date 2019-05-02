@@ -1,18 +1,15 @@
-import logging
-import math
 import os
-import slidingwindow as sw
-
 import cv2
 import numpy as np
 import tensorflow as tf
 import time
 import sys
 import common
-from common import BC_pairs
 from tensblur.smoother import Smoother
 from postProcess  import python_paf_process
 from postProcess.python_paf_process import NUM_PART, NUM_HEATMAP
+import debug_tools
+
 import matplotlib.pyplot as plt
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 sys.path.insert(0, parent_dir)
@@ -36,9 +33,6 @@ def fit_humans_to_size(humans,w, h):
         human[::3] = [int(x* w + 0.5) for x in human[::3]]
         human[1::3] = [int(x* h + 0.5) for x in human[1::3]]
     return humans
-
-
-
 
 class PoseEstimator:
     def __init__(self):
@@ -173,51 +167,6 @@ class TfPoseEstimator:
 
         return humans
 
-
-def create_debug_collage(inp, upscaled_heatmap, upscaled_vectmaps, humans=None):
-    global mplset
-    mplset = True
-
-    fig = plt.figure()
-    a = fig.add_subplot(2, 2, 1)
-    a.set_title('Image')
-    if humans:
-        debug_image = common.draw_humans(inp, humans, imgcopy=True)
-        plt.imshow(debug_image)
-    else:
-        plt.imshow(inp)
-
-    a = fig.add_subplot(2, 2, 2)
-    a.set_title('Heatmap')
-    plt.imshow(common.get_grey_img(inp, target_size=(upscaled_heatmap.shape[1], upscaled_heatmap.shape[0])), alpha=0.5, cmap='gray')
-    tmp = np.amax(upscaled_heatmap, axis=2)*255
-    plt.imshow(tmp, cmap='hot', alpha=0.5)
-    plt.colorbar()
-
-    tmp2 = upscaled_vectmaps.transpose((2, 0, 1))
-    tmp2_odd = np.amax(np.absolute(tmp2[::2, :, :]), axis=0)*255
-    tmp2_even = np.amax(np.absolute(tmp2[1::2, :, :]), axis=0)*255
-
-    a = fig.add_subplot(2, 2, 3)
-    a.set_title('Vectormap-x')
-    plt.imshow(common.get_grey_img(inp, target_size=(upscaled_vectmaps.shape[1], upscaled_vectmaps.shape[0])), alpha=0.5, cmap='gray')
-    plt.imshow(tmp2_odd, cmap='hot', alpha=0.5)
-    plt.colorbar()
-
-    a = fig.add_subplot(2, 2, 4)
-    a.set_title('Vectormap-y')
-    plt.imshow(common.get_grey_img(inp, target_size=(upscaled_vectmaps.shape[1], upscaled_vectmaps.shape[0])), alpha=0.5, cmap='gray')
-    plt.imshow(tmp2_even, cmap='hot', alpha=0.5)
-    plt.colorbar()
-
-    fig.canvas.draw()
-    data = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8, sep='')
-    data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
-    fig.clear()
-    plt.close()
-    return data
-
-
 def evaluate_results(images, list_heatmaps, list_pafmaps, list_gt_keypoint_sets):
     iou_threshold = 0.65
     tps = 0
@@ -231,16 +180,17 @@ def evaluate_results(images, list_heatmaps, list_pafmaps, list_gt_keypoint_sets)
         humans = PoseEstimator.estimate_paf(peaksMap, upscaled_heatmap, upscaled_vectmaps)
         humans = fit_humans_to_size(humans, image.shape[1], image.shape[0])
 
-        debgug_collage = create_debug_collage(image, upscaled_heatmap, upscaled_vectmaps, humans)
+        debgug_collage = debug_tools.create_debug_collage(image, upscaled_heatmap, upscaled_vectmaps, humans)
 
         debgug_collage = cv2.resize(debgug_collage, (640, 640))
         debgug_collage = debgug_collage.reshape([640, 640, 3]).astype(float)
         collages += [debgug_collage]
 
 
-        clean_humans, _  = filter_anns(humans, vis_th=0.5, min_kps=3, min_height=40, ignore_head=False)
-        common.draw_humans(image, np.array(list_gt_keypoint_sets[i]), color=[0, 255, 0])
-        common.draw_humans(image, clean_humans, color=[255, 0, 0])
+        clean_humans, _  = filter_anns(humans, vis_th=0, min_kps=3, min_height=40, ignore_head=False)
+        debug_tools.draw_humans(image, np.array(list_gt_keypoint_sets[i]), color=[0, 255, 0])
+        debug_tools.draw_humans(image, clean_humans, color=[255, 0, 0])
+        cv2.putText(image,"GTs: %d"%len(list_gt_keypoint_sets[i]), (10,30), cv2.FONT_HERSHEY_PLAIN, 2, 2555)
         dts += len(clean_humans)
         gts += len(list_gt_keypoint_sets[i])
         if len(clean_humans) > 0 and len(list_gt_keypoint_sets[i]) > 0:
@@ -249,10 +199,7 @@ def evaluate_results(images, list_heatmaps, list_pafmaps, list_gt_keypoint_sets)
             first_matches_vals = ious[np.arange(ious.shape[0]), first_matches_idxs]
             valid_matches_indices = np.where(first_matches_vals > iou_threshold)[0]  # best det for each gt
             tps += len(valid_matches_indices)
-            cv2.putText(image,"TPs: %d"%len(valid_matches_indices), (10,30), cv2.FONT_HERSHEY_PLAIN, 2, 255)    
-            cv2.putText(image,"GTs: %d"%len(list_gt_keypoint_sets[i]), (10,60), cv2.FONT_HERSHEY_PLAIN, 2, 2555)   
-            common.draw_humans(image, np.array(list_gt_keypoint_sets[i]), color=[0, 255, 0])
-            common.draw_humans(image, clean_humans, color=[255, 0, 0])
+            cv2.putText(image,"TPs: %d"%len(valid_matches_indices), (10,60), cv2.FONT_HERSHEY_PLAIN, 2, 255)
 
         accuracy_images += [image.astype(np.float32)]
 

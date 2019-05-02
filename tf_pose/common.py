@@ -5,7 +5,7 @@ import numpy as np
 import json
 import os
 import matplotlib.pyplot as plt
-
+from numpy import random
 regularizer_conv = 0.004
 regularizer_dsconv = 0.0004
 batchnorm_fused = True
@@ -38,8 +38,10 @@ def read_imgfile(path, width=None, height=None):
     return val_image
 
 
-def get_sample_images(anns_path, w, h):
+def get_sample_images(anns_path, w, h, subsample=None):
     anns = json.load(open(anns_path))
+    if subsample is not None:
+        anns = {k:anns[k] for k in random.choice(list(anns.keys()), subsample) }
 
     resized_anns = []
     resized_images = []
@@ -89,48 +91,3 @@ def prepare_heatmaps(raw_heatmap, raw_vectmap, upsample=4):
     dilated_smoothed_heatmap = cv2.dilate(smoothed_heatmap, None)
     peaksMap = np.where(smoothed_heatmap == dilated_smoothed_heatmap, smoothed_heatmap, 0)
     return peaksMap, upscaled_heatmap, upscaled_vectmaps
-
-
-def draw_humans(npimg, humans, color=None, imgcopy=False):
-    if imgcopy:
-        npimg = np.copy(npimg)
-    image_h, image_w = npimg.shape[:2]
-
-    colors = np.random.rand(1,3)
-    sks = np.array([(0,1),(1,2),(1,3), (2,4),(4,6), (3,5),(5,7), (1,8),(8,10),(10,12), (1,9),(9,11),(11,13)])
-    centers = {}
-    
-    for i,kp in enumerate(humans):
-        # draw point
-        x = kp[0::3]
-        y = kp[1::3]
-        v = np.array(kp[2::3])
-        if color is not None:
-         person_color = color
-        else:
-            person_color = list(np.random.rand(1,3)[0]*255)
-        # draw limbs
-        for sk in sks:
-            if np.all(v[sk] > 0):
-                center_1 = (int(x[sk[0]] + 0.5), int(y[sk[0]] + 0.5))
-                center_0 = (int(x[sk[1]] + 0.5), int(y[sk[1]] + 0.5))
-                cv2.line(npimg, center_0, center_1, person_color, 2)
-        for i in range(BC_parts.Background.value):
-            if v[i] > 0:
-                cv2.circle(npimg, (int(x[i] + 0.5), int(y[i] + 0.5)), 1, [0,0,0], thickness=1, lineType=4, shift=0)
-
-    return npimg
-
-def plot_from_csv(input_path, output_path, plotees):
-    from itertools import cycle
-    cycol = cycle('bgrcmk')
-
-    import pandas as pd
-    pd = pd.read_csv(input_path)
-    step_nums = np.array(pd['Step_number'])
-    for data_name in plotees:
-        plt.plot(step_nums,  np.array(pd[data_name]), label=data_name, c=next(cycol))
-    plt.xlabel('Step_number')
-    plt.legend(loc='upper left')
-    plt.savefig(output_path)
-    plt.close()
