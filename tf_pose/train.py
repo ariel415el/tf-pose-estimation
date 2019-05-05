@@ -275,7 +275,7 @@ if __name__ == '__main__':
             if (gs_num > step_per_epoch * args.max_epoch) or (gs_num > args.max_iter):
                 break
 
-            if gs_num - last_gs_num >= 10:
+            if gs_num - last_gs_num >= 100:
                 train_loss, train_loss_last_paf, train_loss_last_hm, lr_val, queue_size, summary = sess.run([
                     total_loss, loss_last_paf, loss_last_hm, learning_rate, enqueuer.size(), merged_train_summary_op
                 ])
@@ -292,7 +292,7 @@ if __name__ == '__main__':
                             % (gs_num / step_per_epoch, gs_num, ex_per_sec, lr_val, train_loss))
                 last_gs_num = gs_num
 
-            if gs_num - last_gs_num2 >= 20:
+            if gs_num - last_gs_num2 >= 1000:
                 # save weights
                 saver.save(sess, os.path.join(model_dir, 'model'), global_step=global_step)
 
@@ -331,7 +331,7 @@ if __name__ == '__main__':
                 val_file.flush()
                 debug_tools.plot_from_csv(os.path.join(debug_dir, "val_file.csv"), os.path.join(debug_dir, "val_plot.png"), ["loss", "loss_last_hm", "loss_last_pm"])
 
-            if gs_num - last_gs_num3 >= 30 and args.visual_val_samples > 0:
+            if gs_num - last_gs_num3 >= 5000 and args.visual_val_samples > 0:
 
                 last_gs_num3 = gs_num
                 test_start = time.time()
@@ -371,6 +371,7 @@ if __name__ == '__main__':
                 if not os.path.exists(output_dir):
                     os.makedirs(output_dir)
                 for idx in range(len(collages_images)):
+                    import pdb;pdb.set_trace()
                     cv2.imwrite(os.path.join(output_dir, "collage_%d.png"%idx), cv2.cvtColor(collages_images[idx].astype(np.float32), cv2.COLOR_RGB2BGR))
                     cv2.imwrite(os.path.join(output_dir, "accuracy_%d.png"%idx),  cv2.cvtColor(acc_images[idx].astype(np.float32), cv2.COLOR_RGB2BGR))
 

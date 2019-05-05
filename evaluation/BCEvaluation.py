@@ -82,14 +82,21 @@ def evaluate(gt_kps, det_kps, iou_threshold, debug_gt_vis_th, get_debug_image=Fa
     for i, image_path in enumerate(gt_kps):
         gt = gt_kps[image_path]
         if len(gt) == 0:
+            if get_debug_image:
+                im = cv2.imread(image_path)
+                cv2.putText(im,"GTs: %d"%len(gt), (10,30), cv2.FONT_HERSHEY_PLAIN,2,(0,255,0), 2)  
+                debug_images += [im] 
             continue
         gts += len(gt)
         if image_path in det_kps:
             dt = det_kps[image_path]
             if len(dt) == 0:
+                if get_debug_image:
+                    im = cv2.imread(image_path)
+                    cv2.putText(im,"TPs: %d"%len(valid_matches_indices), (10,60), cv2.FONT_HERSHEY_PLAIN, 2,(255,0,0), 2)
+                    debug_images += [im] 
                 continue
             dts += len(dt)  
-
             ious = computeOks(gt, dt) # this is a (gt)x(det) matrices of ious
             ious = ious.transpose()
 
@@ -99,7 +106,7 @@ def evaluate(gt_kps, det_kps, iou_threshold, debug_gt_vis_th, get_debug_image=Fa
             tps += len(valid_matches_indices)
             debug_image = None
             if get_debug_image:
-                im = cv2.imread(image_path)# cv2.cvtColor(, cv2.COLOR_BGR2RGB)
+                im = cv2.imread(image_path)
                 draw_humans(im, gt,color=[0,255,0])
                 draw_humans(im, dt,color=[255,0,0])
                 cv2.putText(im,"GTs: %d"%len(gt), (10,30), cv2.FONT_HERSHEY_PLAIN,2,(0,255,0), 2)    
