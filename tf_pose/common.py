@@ -38,19 +38,20 @@ def read_imgfile(path, width=None, height=None):
     return val_image
 
 
-def get_sample_images(anns_path, w, h, subsample=None):
+def get_sample_images(anns_path, w, h, batchsize, subsample=None):
     anns = json.load(open(anns_path))
-    if subsample is not None:
-        anns = {k:anns[k] for k in random.choice(list(anns.keys()), subsample) }
+    size = batchsize if subsample is None else max(batchsize, min(subsample,len(anns)))
+    size = (size // batchsize)*batchsize
+    
+    anns = {k:anns[k] for k in random.choice(list(anns.keys()), size) }
 
-    resized_anns = []
-    resized_images = []
+    resized_anns_dict = {}
     for k in anns:
-        image = cv2.imread(k, cv2.IMREAD_COLOR)
-        resized_images += [cv2.resize(image, (w, h))]
-
-        x_factor = w / image.shape[1]
-        y_factor = h / image.shape[0]
+        # image = cv2.imread(k, cv2.IMREAD_COLOR)
+        # x_factor = w / image.shape[1]
+        # y_factor = h / image.sh
+        x_factor = w / anns[k]['img_width']
+        y_factor = h / anns[k]['img_height']
         resized_sets = []
         for ref_set in anns[k]['keypoint_sets']:
             new_set = ref_set.copy()
@@ -58,10 +59,9 @@ def get_sample_images(anns_path, w, h, subsample=None):
             new_set[1::3] = [y * y_factor for y in ref_set[1::3]]
             if new_set != [] and np.sum(new_set[::3]) != 0 and np.sum(new_set[1::3]) != 0:
                 resized_sets += [new_set]
-        resized_anns += [resized_sets]
+        resized_anns_dict[k] = resized_sets
 
-    anns = [anns[k]['keypoint_sets'] for k in anns]
-    return resized_images, resized_anns
+    return resized_anns_dict
 
 
 def to_str(s):

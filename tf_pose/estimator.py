@@ -13,7 +13,7 @@ import debug_tools
 import matplotlib.pyplot as plt
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 sys.path.insert(0, parent_dir)
-from evaluation.BCEvaluation import filter_anns, computeOks
+from evaluation.BCEvaluation import filter_anns, computeOks, compute_roc
 
 def _round(v):
     return int(round(v))
@@ -167,13 +167,15 @@ class TfPoseEstimator:
 
         return humans
 
-def evaluate_results(images, list_heatmaps, list_pafmaps, list_gt_keypoint_sets):
-    iou_threshold = 0.65
+def evaluate_results(images, list_heatmaps, list_pafmaps, imgs_paths, gt_anns_list):
+    iou_threshold = 0.5
     tps = 0
     gts = 0
     dts = 0
     collages = []
     accuracy_images = []
+    det_kps_dict = {}
+    gt_kps_dict = {}
     for i in range(len(images)):
         image = common.get_bgimg(images[i]).copy()
         peaksMap, upscaled_heatmap, upscaled_vectmaps = common.prepare_heatmaps(list_heatmaps[i], list_pafmaps[i], upsample=4)
@@ -185,23 +187,36 @@ def evaluate_results(images, list_heatmaps, list_pafmaps, list_gt_keypoint_sets)
         debgug_collage = cv2.resize(debgug_collage, (640, 640))
         debgug_collage = debgug_collage.reshape([640, 640, 3]).astype(float)
         collages += [debgug_collage]
+        det_kps_dict[imgs_paths[i]] = humans
+        gt_kps_dict[imgs_paths[i]] = gt_anns_list[i]
 
-
-        clean_humans, _  = filter_anns(humans, vis_th=0, min_kps=3, min_height=40, ignore_head=False)
-        debug_tools.draw_humans(image, np.array(list_gt_keypoint_sets[i]), color=[0, 255, 0])
-        debug_tools.draw_humans(image, clean_humans, color=[255, 0, 0])
-        cv2.putText(image,"GTs: %d"%len(list_gt_keypoint_sets[i]), (10,30), cv2.FONT_HERSHEY_PLAIN, 2, 2555)
-        dts += len(clean_humans)
-        gts += len(list_gt_keypoint_sets[i])
-        if len(clean_humans) > 0 and len(list_gt_keypoint_sets[i]) > 0:
-            ious = computeOks(np.array(list_gt_keypoint_sets[i]), clean_humans).transpose()  # this is a (gt)x(det) matrices of ious
-            first_matches_idxs = np.argmax(ious, axis=1)  # best det for each gt
-            first_matches_vals = ious[np.arange(ious.shape[0]), first_matches_idxs]
-            valid_matches_indices = np.where(first_matches_vals > iou_threshold)[0]  # best det for each gt
-            tps += len(valid_matches_indices)
-            cv2.putText(image,"TPs: %d"%len(valid_matches_indices), (10,60), cv2.FONT_HERSHEY_PLAIN, 2, 255)
-
-        accuracy_images += [image.astype(np.float32)]
+        # clean_humans, _  = filter_anns(humans, vis_th=0, min_kps=3, min_height=40, ignore_head=False)
+        # debug_tools.draw_humans(image, np.array(list_gt_keypoint_sets[i]), color=[0, 255, 0])
+        # debug_tools.draw_humans(image, clean_humans, color=[255, 0, 0])
+        # cv2.putText(image,"GTs: %d"%len(list_gt_keypoint_sets[i]), (10,30), cv2.FONT_HERSHEY_PLAIN, 2, 2555)
+        # dts += len(clean_humans)
+        # gts += len(list_gt_keypoint_sets[i])
+        # if len(clean_humans) > 0 and len(list_gt_keypoint_sets[i]) > 0:
+        #     ious = computeOks(np.array(list_gt_keypoint_sets[i]), clean_humans).transpose()  # this is a (gt)x(det) matrices of ious
+        #     first_matches_idxs = np.argmax(ious, axis=1)  # best det for each gt
+        #     first_matches_vals = ious[np.arange(ious.shape[0]), first_matches_idxs]
+        #     valid_matches_indices = np.where(first_matches_vals > iou_threshold)[0]  # best det for each gt
+        #     tps += len(valid_matches_indices)
+        #     cv2.putText(image,"TPs: %d"%len(valid_matches_indices), (10,60), cv2.FONT_HERSHEY_PLAIN, 2, 255)
+        # accuracy_images += [image.astype(np.float32)]
+    recall_vals, precision_vals, accuracy_images = compute_roc(gt_kps_dict, det_kps_dict,
+        iou_th=iou_threshold,
+        gt_vis_th=1,
+        min_kps=3,
+        min_height=50,
+        ignore_head=False,
+        debug_vis_th=0.2) 
+         
+        
+    # recall, precision, debug_images_set = evaluate(list_gt_keypoint_sets,
+    #                         det_kps_dict,
+    #                         iou_threshold,
+    #                         get_debug_image=debug)
 
     # Compute recall precision
     if gts == 0:

@@ -1,11 +1,11 @@
 import argparse
 import cv2
 import numpy as np
-from tf_pose.estimator import TfPoseEstimator
-from tf_pose.networks import model_wh
+from estimator import TfPoseEstimator
+from networks import model_wh
 import json
 import os
-from tf_pose.debug_tools import draw_humans
+from debug_tools import draw_humans
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='tf-pose-estimation run')

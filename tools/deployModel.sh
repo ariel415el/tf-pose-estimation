@@ -19,13 +19,12 @@ echo ++++++++++++++++++++++++++++++++++++++
 mkdir "${NEW_DIR}"
 cp "${MODEL_PATH}/${MODEL}"* "${NEW_DIR}"
 
-
-echo ++++++++++++++++++++++++++++++++++++++
-echo ++++++ Test checkpoint  ++++++++++++++
-echo ++++++++++++++++++++++++++++++++++++++
-
-#python3 "${TF_DIR}"/tf_pose/train_like_inference.py --checkpoint "${NEW_DIR}/${MODEL}"  --out_path "${NEW_DIR}"/heatMaps --model_name "${MODEL_TYPE}"
-#exit 0
+# echo ++++++++++++++++++++++++++++++++++++++
+# echo ++++++ Test checkpoint  ++++++++++++++
+# echo ++++++++++++++++++++++++++++++++++++++
+# python3 "${TF_DIR}"/tf_pose/train_like_inference.py --checkpoint "${NEW_DIR}/${MODEL}"  --out_path "${NEW_DIR}"/heatMaps --model_name "${MODEL_TYPE}"
+# exit 0
+# 
 echo ++++++++++++++++++++++++++++++++++++++
 echo ++++++ Load checkpoint input +++++++++
 echo ++++++++++++++++++++++++++++++++++++++
@@ -35,10 +34,6 @@ python3 "${TF_DIR}"/tools/run_checkpoint.py --model "${MODEL_TYPE}" --ckp "${NEW
 echo ++++++++++++++++++++++++++++++++++++++
 echo +++++++++ Freeze model +++++++++++++++
 echo ++++++++++++++++++++++++++++++++++++++
-#  --input_checkpoint="${NEW_DIR}/${MODEL}" \
-#  --input_meta_graph="${NEW_DIR}/${MODEL}".meta \
-#  --input_checkpoint="${NEW_DIR}"/generated_checkpoint-1 \
-#python3  "${TF_DIR}"/trt/freeze_ariel.py "${NEW_DIR}/${MODEL}"
 
 MODEL_NAME="${MODEL}"_frozen
 python3 -m tensorflow.python.tools.freeze_graph \
@@ -76,11 +71,10 @@ echo ++++++++++ Test model  +++++++++++++++
 echo ++++++++++++++++++++++++++++++++++++++
 MODEL_NAME="${NEW_MODEL_NAME}"
 IMAGE_DIR="${TF_DIR}"/images
-python3 "${TF_DIR}"/ariel_run.py --images "${IMAGE_DIR}" --model "${NEW_DIR}/${MODEL_NAME}".pb  --resize "${WIDTH}"x"${HEIGHT}" --in_name image:0 --out_name "${OUT_LAYER}":0 --debug_images
+python3 "${TF_DIR}"/tf_pose/ariel_run.py --images "${IMAGE_DIR}" --model "${NEW_DIR}/${MODEL_NAME}".pb  --resize "${WIDTH}"x"${HEIGHT}" --in_name image:0 --out_name "${OUT_LAYER}":0 --debug_images
 mv "${TF_DIR}"/tf-openpose_"${MODEL_NAME}".json "${NEW_DIR}"/tf-openpose_"${MODEL_NAME}".json
-# python3 "${TF_DIR}"/tools/vis/create_debug_images.py  "${TF_DIR}"/images "${NEW_DIR}"/tf-openpose_"${MODEL_NAME}".json
 mv  "${IMAGE_DIR}"_out_"${MODEL_NAME}" "${NEW_DIR}"
-
+python3 "${TF_DIR}"/evaluation/BCEvaluation.py --det_file "${NEW_DIR}"/tf-openpose_"${MODEL_NAME}".json --gt_fixed_vis_th 0.2 --gt_file '/briefcam/Data/PoseEstimations/BC_movies_test/alphapose_frames_manual_BC.json' 
 
 echo ++++++++++++++++++++++++++++++++++++++
 echo ++++++++++ Convert to onnx +++++++++++
