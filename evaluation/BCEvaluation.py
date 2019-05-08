@@ -84,7 +84,7 @@ def evaluate(gt_kps, det_kps, iou_threshold, debug_gt_vis_th, get_debug_image=Fa
         if len(gt) == 0:
             if get_debug_image:
                 im = cv2.imread(image_path)
-                cv2.putText(im,"GTs: %d"%len(gt), (10,30), cv2.FONT_HERSHEY_PLAIN,2,(0,255,0), 2)  
+                cv2.putText(im,"GTs: %d"%0, (10,30), cv2.FONT_HERSHEY_PLAIN,2,(0,255,0), 2)  
                 debug_images += [im] 
             continue
         gts += len(gt)
@@ -93,7 +93,7 @@ def evaluate(gt_kps, det_kps, iou_threshold, debug_gt_vis_th, get_debug_image=Fa
             if len(dt) == 0:
                 if get_debug_image:
                     im = cv2.imread(image_path)
-                    cv2.putText(im,"TPs: %d"%len(valid_matches_indices), (10,60), cv2.FONT_HERSHEY_PLAIN, 2,(255,0,0), 2)
+                    cv2.putText(im,"TPs: %d"%0, (10,60), cv2.FONT_HERSHEY_PLAIN, 2,(255,0,0), 2)
                     debug_images += [im] 
                 continue
             dts += len(dt)  

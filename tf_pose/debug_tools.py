@@ -52,6 +52,21 @@ def plot_from_csv(input_path, output_path, plotees):
     plt.savefig(output_path)
     plt.close()
 
+def plot_combined_train_val(train_file_path, val_file_path, output_path, plotees):
+    from itertools import cycle
+    cycol = cycle('bgrcmk')
+
+    import pandas as pd
+    train_pd = pd.read_csv(train_file_path)
+    val_pd = pd.read_csv(val_file_path)
+    for data_name in plotees:
+        plt.plot(np.array(train_pd['Step_number']),  np.array(train_pd[data_name]), label="train_" + data_name, c=next(cycol))
+        plt.plot(np.array(val_pd['Step_number']),  np.array(val_pd[data_name]), label="train_" + data_name, c=next(cycol))
+    plt.xlabel('Step_number')
+    plt.legend(loc='upper left')
+    plt.savefig(output_path)
+    plt.close()
+
 def create_debug_collage(inp, upscaled_heatmap, upscaled_vectmaps, humans=None):
     global mplset
     mplset = True
