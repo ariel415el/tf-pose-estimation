@@ -23,7 +23,8 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     model_name = os.path.splitext(os.path.basename(args.model))[0]
-    out_dir = args.images + "_out_" + model_name
+    # out_dir = args.images + "_out_" + model_name + args.resize
+    out_dir = os.path.splitext(args.model)[0] + "_out_" + args.resize
     if not os.path.exists(out_dir): 
        os.makedirs(out_dir)
     w, h = model_wh(args.resize)
@@ -50,7 +51,8 @@ if __name__ == '__main__':
             print("\tSaving image to: ",os.path.join(out_dir,fname))
             cv2.imwrite(os.path.join(out_dir, fname), debug_image)
 
-    json_path =  os.path.join(os.path.dirname(args.images), "tf-openpose_%s.json"%model_name)
+    # json_path =  os.path.join(os.path.dirname(args.images), "tf-openpose_%s.json"%model_name)
+    json_path = os.path.splitext(args.model)[0] + "_" + os.path.basename(args.images) + "_" + args.resize + ".json"
 
     print("###########################")
     print("Saving json to: ",json_path)

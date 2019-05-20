@@ -34,7 +34,10 @@ def draw_humans(npimg, humans, color=None, imgcopy=False):
                 cv2.line(npimg, center_0, center_1, person_color, 2)
         for i in range(common.BC_parts.Background.value):
             if v[i] > 0:
-                cv2.circle(npimg, (int(x[i] + 0.5), int(y[i] + 0.5)), 1, [0,0,0], thickness=1, lineType=4, shift=0)
+                if i in [2,4,6,8,10,12]:
+                    cv2.rectangle(npimg, (int(x[i] + 2.5), int(y[i] + 2.5)), (int(x[i] - 2.5), int(y[i] - 2.5)), [0,127,127], thickness=1, lineType=4, shift=0)
+                else:
+                    cv2.circle(npimg, (int(x[i] + 0.5), int(y[i] + 0.5)), 1, [0,0,0], thickness=1, lineType=4, shift=0)
 
     return npimg
 

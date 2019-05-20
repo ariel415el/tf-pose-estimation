@@ -43,7 +43,7 @@ def computeOks(gt_kps, det_kps):
             dy = yd - yg
             size_factor = bb_w*bb_h/2
             e = (dx**2 + dy**2) / (vars * size_factor * 2 + np.spacing(1))
-            normalize_by = e.shape[0]
+            normalize_by = (vg > 0).shape[0]
             e=e[(vg > 0) & (vd > 0)]
             if e.shape[0] > 0:
                 exp = np.exp(-e)
@@ -93,7 +93,8 @@ def evaluate(gt_kps, det_kps, iou_threshold, debug_gt_vis_th, get_debug_image=Fa
             if len(dt) == 0:
                 if get_debug_image:
                     im = cv2.imread(image_path)
-                    cv2.putText(im,"TPs: %d"%0, (10,60), cv2.FONT_HERSHEY_PLAIN, 2,(255,0,0), 2)
+                    cv2.putText(im,"Dets: %d"%0, (10,60), cv2.FONT_HERSHEY_PLAIN, 2,(255,0,0), 2)
+                    cv2.putText(im,"TPs: %d"%0, (10,90), cv2.FONT_HERSHEY_PLAIN, 2,(0,0,255), 2)
                     debug_images += [im] 
                 continue
             dts += len(dt)  
@@ -107,10 +108,12 @@ def evaluate(gt_kps, det_kps, iou_threshold, debug_gt_vis_th, get_debug_image=Fa
             debug_image = None
             if get_debug_image:
                 im = cv2.imread(image_path)
+                print(image_path)
                 draw_humans(im, gt,color=[0,255,0])
                 draw_humans(im, dt,color=[255,0,0])
-                cv2.putText(im,"GTs: %d"%len(gt), (10,30), cv2.FONT_HERSHEY_PLAIN,2,(0,255,0), 2)    
-                cv2.putText(im,"TPs: %d"%len(valid_matches_indices), (10,60), cv2.FONT_HERSHEY_PLAIN, 2,(255,0,0), 2)
+                cv2.putText(im,"GTs: %d"%len(gt), (10,30), cv2.FONT_HERSHEY_PLAIN,2,(0,255,0), 2)
+                cv2.putText(im,"Dets: %d"%len(dt), (10,60), cv2.FONT_HERSHEY_PLAIN, 2,(255,0,0), 2)
+                cv2.putText(im,"TPs: %d"%len(valid_matches_indices), (10,90), cv2.FONT_HERSHEY_PLAIN, 2,(0,0,255), 2)
                 for k in range(len(first_matches_idxs)):
                     vis = np.where(gt[first_matches_idxs[k]][2::3] >= debug_gt_vis_th)[0]
                     if len(vis) > 0:
@@ -169,7 +172,7 @@ def compute_roc(gt_anns, det_anns, iou_th, gt_vis_th, min_kps, min_height, ignor
         precision_vals += [precision]
         print("%d images done :%d/%d ths done"%(len(detections_copy), i, len(visThrs)))
 
-    return recall_vals, precision_vals, debug_images_set
+    return visThrs, recall_vals, precision_vals, debug_images_set
 
 
 if __name__ == '__main__':
@@ -177,27 +180,28 @@ if __name__ == '__main__':
     parser.add_argument('--gt_file', required=True)
     parser.add_argument('--det_file', required=True)
     parser.add_argument('--iou_th',type=float, default=0.5)
-    parser.add_argument('--gt_fixed_vis_th',type=float, default=1) # relevant if gt has varying visibilities (Alphapose) or vis is in other range (coco { 0,1,2 })
+    parser.add_argument('--gt_fixed_vis_th',type=float, default=0.1) # relevant if gt has varying visibilities (Alphapose) or vis is in other range (coco { 0,1,2 })
     parser.add_argument('--min_kps',type=int, default=3) 
-    parser.add_argument('--min_bbox_height',type=int, default=100) # TODO : use height ratio instaed of absolute
+    parser.add_argument('--min_bbox_height',type=int, default=20) # TODO : use height ratio instaed of absolute
     parser.add_argument('--debug_vis_th',type=float, default=0.2)
     parser.add_argument('--ignore_head',action='store_true')
     args = parser.parse_args()
-
+    debug_images_sets = []
     # load annotations
     gt_anns=json.load(open(args.gt_file))
     det_anns=json.load(open(args.det_file))
     gt_anns={path:  gt_anns[path]['keypoint_sets'] for path in gt_anns}
     det_anns = {path: det_anns[path]['keypoint_sets'] for path in det_anns}
 
-    recall_vals, precision_vals, debug_images_sets = compute_roc(gt_anns, det_anns,
+    visThrs, recall_vals, precision_vals, debug_images_set = compute_roc(gt_anns, det_anns,
                 iou_th=args.iou_th,
                 gt_vis_th=args.gt_fixed_vis_th,
                 min_kps=args.min_kps,
                 min_height=args.min_bbox_height,
                 ignore_head=args.ignore_head,
                 debug_vis_th=args.debug_vis_th)
-
+    debug_images_sets += [debug_images_set]
+    print("BCEvalutation: computed all recall and vals")
     # print("vis Th %f with iou threshold %f gives recall %f and precision %f"%(visThrs[3], iou_th, recall_vals[3],precision_vals[3]))
     # with open(os.path.join(os.path.dirname(args.det_file), os.path.basename(os.path.splitext(.det_file)[0])+"_res.txt"), "w") as f :
     #     f.write("vis Th %f with iou threshold %f gives recall %f and precision %f"%(visThrs[3], args.iou_th, recall_vals[3],precision_vals[3]))
@@ -212,7 +216,11 @@ if __name__ == '__main__':
     plt.xlabel('Recall')
     plt.ylabel('Precision')
     plt.savefig(os.path.join(os.path.dirname(args.det_file), "ROC_" + os.path.basename(os.path.splitext(args.det_file)[0])+".png"))
-
+    recval_file = open(os.path.join(os.path.dirname(args.det_file), "recval_file.csv"), "w")
+    recval_file.write("Vis_th,Recall,Percision\n")
+    for i in range(len(visThrs)):
+        recval_file.write("%s,%s,%s\n"%(visThrs[i],recall_vals[i],precision_vals[i]))
+    recval_file.close()
     out_dir = os.path.join(os.path.splitext(args.det_file)[0] + "_debug-th_%f" % args.debug_vis_th)
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)

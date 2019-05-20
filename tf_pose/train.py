@@ -94,8 +94,6 @@ def main():
                                                                                     args.gpus, 
                                                                                     logger)
     
-    batch_average_loss = batch_average_loss / args.virtual_batch
-
     update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
     if args.virtual_batch < 2:
         train_op, exp_lr, backbone_exp_lr = get_train_op(batch_average_loss,
@@ -105,9 +103,11 @@ def main():
                                                             args.lr*args.backbone_lr_factor,
                                                             args.decay_steps,
                                                             args.decay_rate,
+         
                                                             logger)
     else:
-        zero_ops, accum_ops, update_ops, train_step, inc_gs_num, exp_lr, backbone_exp_lr = get_virtual_train_op(batch_average_loss,
+        # we train by virtual batch size but validation is computed over real batch size
+        zero_ops, accum_ops, update_ops, train_step, inc_gs_num, exp_lr, backbone_exp_lr = get_virtual_train_op(batch_average_loss / args.virtual_batch,
                                                                                                                     update_ops,
                                                                                                                     global_step,
                                                                                                                     args.lr,
@@ -176,7 +176,7 @@ def main():
             if (gs_num > step_per_epoch * args.max_epoch) or (gs_num > args.max_iter):
                 break
 
-            if gs_num - last_gs_num >= 10:
+            if gs_num - last_gs_num >= 100:
                 train_loss, exp_lr_val, backbone_exp_lr_val, queue_size, summary = sess.run([batch_average_loss, exp_lr, backbone_exp_lr, enqueuer.size(), merged_train_summary_op])
                 file_writer.add_summary(summary, gs_num)
                 file_writer.flush()
@@ -191,7 +191,7 @@ def main():
                 last_gs_num = gs_num
 
 
-            if gs_num - last_gs_num2 >= 500:
+            if gs_num - last_gs_num2 >= 1000:
                 # save weights
                 saver.save(sess, os.path.join(model_dir, 'model'), global_step=global_step)
 
@@ -215,7 +215,7 @@ def main():
                 debug_tools.plot_from_csv(os.path.join(debug_dir, "val_file.csv"), os.path.join(debug_dir, "val_plot.png"), ["loss"])
                 debug_tools.plot_combined_train_val(os.path.join(debug_dir, "train_file.csv"),os.path.join(debug_dir, "val_file.csv"), os.path.join(debug_dir, "combined_plot.png"), ["loss"])
 
-            if gs_num - last_gs_num3 >= 30 and args.visual_val_samples > 0:
+            if gs_num - last_gs_num3 >= 5000 and args.visual_val_samples > 0:
                 test_start = time.time()
                 last_gs_num3 = gs_num
                 try:
@@ -232,7 +232,7 @@ def main():
                     os.makedirs(output_dir)
                 for idx in range(len(collages_images)):
                     cv2.imwrite(os.path.join(output_dir, "collage_%d.png"%idx), cv2.cvtColor(collages_images[idx].astype(np.float32), cv2.COLOR_RGB2BGR))
-                    # cv2.imwrite(os.path.join(output_dir, "accuracy_%d.png"%idx),  cv2.cvtColor(acc_images[idx].astype(np.float32), cv2.COLOR_RGB2BGR))
+                    cv2.imwrite(os.path.join(output_dir, "accuracy_%d.png"%idx),  cv2.cvtColor(acc_images[idx].astype(np.float32), cv2.COLOR_RGB2BGR))
                 logger.info('Test total time. %f' % (time.time() - test_start))
         train_file.close()
         val_file.close()
@@ -243,7 +243,7 @@ def main():
     logger.info('optimization finished. %f' % (time.time() - time_started))
 
 def get_training_name(args):
-    training_name = '{}_b_{}x{}_lr_{:.3f}-{:.3f}x{}x{}_r_{}x{}_{}'.format(
+    training_name = '{}_b_{}x{}_lr_{:.5f}-{:.5f}x{}x{}_r_{}x{}_{}'.format(
             args.model,
             args.batchsize,
             args.virtual_batch,
